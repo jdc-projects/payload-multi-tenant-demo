@@ -210,9 +210,14 @@ async function main() {
       stdio: "inherit",
     });
   }
-  const cms = run("npm", ["run", "dev", "--workspace", "@demo/cms"], {
-    env: { ...testEnv, CMS_PORT: String(cmsPort) },
-  });
+  const cms = run(
+    process.execPath,
+    ["--import", "tsx", `${root}/scripts/run-next.ts`, "cms", "dev"],
+    {
+      cwd: `${root}/apps/cms`,
+      env: { ...testEnv, CMS_PORT: String(cmsPort) },
+    },
+  );
   await waitFor(`http://127.0.0.1:${cmsPort}/admin`);
   execFileSync("npm", ["run", "seed:cms"], {
     cwd: root,
@@ -228,9 +233,14 @@ async function main() {
     cleanup();
     process.exit(0);
   }
-  const web = run("npm", ["run", "start", "--workspace", "@demo/web"], {
-    env: { ...testEnv, WEB_PORT: String(webPort) },
-  });
+  const web = run(
+    process.execPath,
+    ["--import", "tsx", `${root}/scripts/run-next.ts`, "web", "start"],
+    {
+      cwd: `${root}/apps/web`,
+      env: { ...testEnv, WEB_PORT: String(webPort) },
+    },
+  );
   await waitFor(`http://127.0.0.1:${proxyPort}/`);
   if (mode === "artillery") {
     const artillery = run("npx", [
