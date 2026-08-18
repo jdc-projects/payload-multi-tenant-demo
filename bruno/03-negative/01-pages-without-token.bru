@@ -1,0 +1,15 @@
+meta {
+  name: Reject page read without renderer token
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:{{proxyPort}}/api/pages?limit=1
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 403
+}

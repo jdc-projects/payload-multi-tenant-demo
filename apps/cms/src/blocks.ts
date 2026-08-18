@@ -43,7 +43,7 @@ const ImageBlock: Block = {
   slug: "image",
   fields: [
     { name: "image", type: "upload", relationTo: "media", required: true },
-    { name: "alt", type: "text" },
+    { name: "alt", type: "text", required: true },
     { name: "caption", type: "text" },
     spacing,
   ],
