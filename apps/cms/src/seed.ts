@@ -1,5 +1,8 @@
-import config from "./payload.config.js";
+import { loadRootEnv } from "../../../scripts/env.js";
 import { getPayload } from "payload";
+
+loadRootEnv();
+const { default: config } = await import("./payload.config.js");
 
 const tenants = [
   {

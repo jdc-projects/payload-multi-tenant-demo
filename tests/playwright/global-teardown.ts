@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const managedProjectPattern = /^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/;
+const managedProjectPattern = /^payload-demo-[A-Za-z0-9_-]+$/;
 
 function ownedStack(project: string) {
   if (!managedProjectPattern.test(project)) return null;
@@ -34,7 +34,11 @@ function stopManagedStack(project: string) {
   const stack = ownedStack(project);
   if (!stack) return false;
   if (stack.command.includes("scripts/test-stack.ts")) {
-    process.kill(stack.pid, "SIGTERM");
+    try {
+      process.kill(stack.pid, "SIGTERM");
+    } catch {
+      // The owner may have exited after the process check.
+    }
     for (let attempt = 0; attempt < 600; attempt += 1) {
       if (!fs.existsSync(stack.manifestFile)) return true;
       execFileSync("sleep", ["0.1"]);

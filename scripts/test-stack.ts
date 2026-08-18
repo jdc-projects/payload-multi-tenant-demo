@@ -29,7 +29,9 @@ let cleaned = false;
 const composeProject =
   process.env.TEST_COMPOSE_PROJECT ?? `payload-demo-${process.pid}`;
 const manifestFile = `${root}/.test-stack-${composeProject}.json`;
-const managedProjectPattern = /^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/;
+const managedProjectPattern = /^payload-demo-[A-Za-z0-9_-]+$/;
+const reconcilableProjectPattern =
+  /^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/;
 const testEnv = {
   ...process.env,
   POSTGRES_HOST: "127.0.0.1",
@@ -64,7 +66,11 @@ function cleanupStaleManagedProjects() {
   }
 
   for (const { Name: name } of projects)
-    if (name && managedProjectPattern.test(name) && name !== composeProject)
+    if (
+      name &&
+      reconcilableProjectPattern.test(name) &&
+      name !== composeProject
+    )
       reconcileStaleProject(name);
 }
 
@@ -134,6 +140,12 @@ function waitForExit(child: ChildProcess) {
     child.once("error", reject);
     child.once("exit", (code) => resolve(code ?? 1));
   });
+}
+
+async function stopChild(child: ChildProcess) {
+  const exited = waitForExit(child).catch(() => 1);
+  if (child.pid) killProcessTree(child.pid);
+  await exited;
 }
 
 function killProcessTree(pid: number) {
@@ -227,6 +239,7 @@ function normalizeNextEnvFiles() {
 
 async function main() {
   assertMode();
+  claimManagedProject();
   cleanupStaleManagedProjects();
   fs.writeFileSync(
     manifestFile,
@@ -236,6 +249,17 @@ async function main() {
   await prepareCms();
   if (mode === "build") return finishBuild();
   await runWebMode();
+}
+
+function claimManagedProject() {
+  if (!managedProjectPattern.test(composeProject))
+    throw new Error("TEST_COMPOSE_PROJECT must start with payload-demo-.");
+  if (!fs.existsSync(manifestFile)) return;
+  if (isManagedProjectLive(manifestFile, composeProject))
+    throw new Error(
+      `Managed test project is already running: ${composeProject}`,
+    );
+  fs.unlinkSync(manifestFile);
 }
 
 function assertMode() {
@@ -269,13 +293,12 @@ async function startInfrastructure() {
 }
 
 async function prepareCms() {
-  if (mode === "build")
-    execFileSync("npm", ["run", "build", "--workspace", "@demo/cms"], {
-      cwd: root,
-      env: testEnv,
-      stdio: "inherit",
-    });
-  const cms = run(
+  execFileSync("npm", ["run", "build", "--workspace", "@demo/cms"], {
+    cwd: root,
+    env: testEnv,
+    stdio: "inherit",
+  });
+  const cmsDev = run(
     process.execPath,
     ["--import", "tsx", `${root}/scripts/run-next.ts`, "cms", "dev"],
     {
@@ -289,6 +312,16 @@ async function prepareCms() {
     env: testEnv,
     stdio: "inherit",
   });
+  await stopChild(cmsDev);
+  const cms = run(
+    process.execPath,
+    ["--import", "tsx", `${root}/scripts/run-next.ts`, "cms", "start"],
+    {
+      cwd: `${root}/apps/cms`,
+      env: { ...testEnv, CMS_PORT: String(cmsPort) },
+    },
+  );
+  await waitFor(`http://127.0.0.1:${cmsPort}/admin`);
   execFileSync("npm", ["run", "build", "--workspace", "@demo/web"], {
     cwd: root,
     env: testEnv,

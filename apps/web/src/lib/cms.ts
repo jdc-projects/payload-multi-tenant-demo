@@ -1,6 +1,11 @@
 const cmsUrl =
   process.env.NEXT_PUBLIC_CMS_URL ??
   `${process.env.CMS_PROTOCOL ?? "http"}://${process.env.CMS_HOST ?? "localhost"}:${process.env.CMS_PORT ?? "3001"}`;
+const cmsRendererToken =
+  process.env.CMS_RENDERER_TOKEN ?? process.env.PAYLOAD_SECRET;
+const cmsHeaders = cmsRendererToken
+  ? { "x-cms-renderer-token": cmsRendererToken }
+  : undefined;
 
 export type Page = {
   title: string;
@@ -23,6 +28,7 @@ export async function getPage(tenant: string, slug = ""): Promise<Page | null> {
     depth: "2",
   });
   const response = await fetch(`${cmsUrl}/api/pages?${params}`, {
+    headers: cmsHeaders,
     next: { revalidate: 60, tags: [`page:${tenant}:${slug}`] },
   });
   if (!response.ok) return null;
@@ -47,6 +53,7 @@ export async function getPagePaths(): Promise<
     limit: "1000",
   });
   const response = await fetch(`${cmsUrl}/api/pages?${params}`, {
+    headers: cmsHeaders,
     next: { revalidate: 60, tags: ["pages"] },
   });
   if (!response.ok) return [];

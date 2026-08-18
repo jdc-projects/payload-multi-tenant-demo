@@ -14,8 +14,17 @@ const tenantScope = ({ req }: { req: { user?: unknown } }) => {
   };
 };
 
-const publishedOrAuthenticated = ({ req }: { req: { user?: unknown } }) =>
-  req.user ? tenantScope({ req }) : { _status: { equals: "published" } };
+const rendererToken =
+  process.env.CMS_RENDERER_TOKEN ?? process.env.PAYLOAD_SECRET;
+const rendererAccess = ({ req }: { req: { headers?: Headers } }) =>
+  Boolean(
+    rendererToken && req.headers?.get("x-cms-renderer-token") === rendererToken,
+  );
+const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
+  if (req.user) return tenantScope({ req });
+  if (rendererAccess({ req })) return { _status: { equals: "published" } };
+  return false;
+};
 
 const enforceTenantWrite = ({
   req,
@@ -78,7 +87,7 @@ export const Pages: CollectionConfig = {
   versions: { drafts: true },
   admin: { useAsTitle: "title" },
   access: {
-    read: publishedOrAuthenticated,
+    read: pageRead,
     create: authenticated,
     update: tenantScope,
     delete: tenantScope,

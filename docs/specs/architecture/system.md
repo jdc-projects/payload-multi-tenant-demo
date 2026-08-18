@@ -22,7 +22,7 @@ Payload is the source of truth for tenant configuration, page content, media, an
 ```mermaid
 flowchart LR
   Browser --> Caddy
-  Caddy --> Web[Next static site]
+  Caddy --> Web[Next hybrid renderer]
   Caddy --> CMS[Payload CMS]
   CMS --> Postgres[(PostgreSQL)]
   CMS --> Media[(RustFS S3)]
