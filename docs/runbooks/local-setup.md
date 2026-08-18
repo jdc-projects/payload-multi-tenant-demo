@@ -15,6 +15,17 @@ This runbook starts the initial local Payload multi-tenant demo.
 
 Open `http://localhost:8888/admin`, then visit `http://localhost:8888/demo1/`, `demo2`, and `demo3`. CMS admin assets are served through the `/cms/_next/` proxy route. Re-running the seed must not create duplicate tenants or home pages. Stop the command with Ctrl-C; development data volumes are retained.
 
+## Seed fixtures
+
+The versioned normalized fixture at `apps/cms/src/fixtures/v1.json` can be exported or imported without generated IDs and timestamps:
+
+```sh
+npm run seed:export -- /tmp/site-fixture.json
+npm run seed:import -- /tmp/site-fixture.json
+```
+
+Import is non-destructive by default. Existing records with changed editor content are reported and skipped; use the explicit `--force` flag only when replacement is intentional. Media entries are references (identified by filename), not binary uploads, so importing a fixture never deletes or replaces media files. Both commands are non-interactive and safe to run repeatedly.
+
 ## Port Overrides
 
 The default development ports are configurable without changing source files:
