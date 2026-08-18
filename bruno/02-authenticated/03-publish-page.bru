@@ -1,0 +1,31 @@
+meta {
+  name: Publish demo1 page
+  type: http
+  seq: 3
+}
+
+patch {
+  url: http://localhost:{{proxyPort}}/api/pages/{{demo1PageId}}?draft=false
+  body: json
+  auth: bearer
+}
+
+headers {
+  content-type: application/json
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:json {
+  {
+    "title": "Acme Studio"
+  }
+}
+
+assert {
+  res.status: in [200, 201]
+  res.body.id: eq {{demo1PageId}}
+  res.body._status: eq published
+}
