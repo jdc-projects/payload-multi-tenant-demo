@@ -2,9 +2,9 @@
 
 This is a small, executable [Bruno](https://www.usebruno.com/) collection for the
 Payload API through Caddy. Import this directory into Bruno and select the
-`local` environment. Requests use `{{baseUrl}}`, which defaults to
-`http://localhost:8888/api`; set `proxyPort` when running a managed test stack
-(for example, `http://localhost:23456/api`).
+`local` environment. Requests use the numeric `{{proxyPort}}` value, which
+defaults to `8888`; set it to the numeric proxy port when running a managed test
+stack (for example, `23456`).
 
 ## Prerequisites
 

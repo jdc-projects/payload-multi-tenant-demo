@@ -17,5 +17,14 @@ headers {
 assert {
   res.status: eq 200
   res.body.docs: isArray
-  res.body.docs[0].tenant.slug: eq demo2
+  res.body.totalDocs: gt 0
+}
+
+tests {
+  test("every returned page belongs to demo2", function() {
+    const body = res.getBody();
+    expect(body.totalDocs).to.be.greaterThan(0);
+    expect(body.docs).to.be.an("array").that.is.not.empty;
+    expect(body.docs.every((page) => page?.tenant?.slug === "demo2")).to.equal(true);
+  });
 }
