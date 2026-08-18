@@ -1,0 +1,24 @@
+import { describe, expect, it } from "vitest";
+import { enforceTenantWrite } from "./collections.js";
+
+describe("tenant write enforcement", () => {
+  it("preserves the existing tenant for partial updates", () => {
+    expect(
+      enforceTenantWrite({
+        req: { user: { tenant: "tenant-1" } },
+        data: {},
+        originalDoc: { tenant: "tenant-1" },
+      }),
+    ).toEqual({});
+  });
+
+  it("rejects partial updates when the existing record belongs elsewhere", () => {
+    expect(() =>
+      enforceTenantWrite({
+        req: { user: { tenant: "tenant-1" } },
+        data: {},
+        originalDoc: { tenant: "tenant-2" },
+      }),
+    ).toThrow("another tenant");
+  });
+});

@@ -10,6 +10,7 @@ process.env.TEST_COMPOSE_PROJECT ??= `payload-demo-web-${process.pid}`;
 const proxyPort =
   process.env.TEST_PROXY_PORT ?? String(10000 + (process.pid % 10000));
 process.env.TEST_PROXY_PORT = proxyPort;
+process.env.CMS_RENDERER_TOKEN ??= "test-renderer-token";
 
 export default defineConfig({
   testDir: "./web",

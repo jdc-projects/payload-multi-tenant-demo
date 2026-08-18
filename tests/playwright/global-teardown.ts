@@ -24,6 +24,7 @@ function ownedStack(project: string) {
     } catch {
       // The owner process may already have exited.
     }
+    if (command && !command.includes("scripts/test-stack.ts")) return null;
     return { command, manifestFile, pid: manifest.pid };
   } catch {
     return null;

@@ -30,4 +30,12 @@ test("CMS admin assets load through the Caddy proxy", async ({ page }) => {
 test("public page API access is not exposed", async ({ request }) => {
   const response = await request.get("/api/pages");
   expect(response.status()).toBe(403);
+  const wrongToken = await request.get("/api/pages", {
+    headers: { "x-cms-renderer-token": "wrong-token" },
+  });
+  expect(wrongToken.status()).toBe(403);
+  const rendererResponse = await request.get("/api/pages", {
+    headers: { "x-cms-renderer-token": process.env.CMS_RENDERER_TOKEN! },
+  });
+  expect(rendererResponse.ok()).toBe(true);
 });

@@ -12,6 +12,8 @@ The local demo needs enough access for a single authenticated Payload administra
 
 - Authenticated Payload users may administer tenant and media records in the local demo.
 - Public visitors may read published pages and media but cannot write through Payload access controls.
+- Tenant names, slugs, and themes are publicly readable for route discovery and visitor branding.
+- Published page records are not publicly queryable through Payload REST; only the separately configured `CMS_RENDERER_TOKEN` may use the renderer read boundary.
 - Role-based tenant administration and protected media ownership remain follow-up work.
 - Every runtime must receive `PAYLOAD_SECRET` from the environment; `.env.example` documents the local value and no code-level fallback exists.
 - CI, deployments, and GitHub Actions are outside the current local-only demo scope.

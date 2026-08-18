@@ -14,8 +14,7 @@ const tenantScope = ({ req }: { req: { user?: unknown } }) => {
   };
 };
 
-const rendererToken =
-  process.env.CMS_RENDERER_TOKEN ?? process.env.PAYLOAD_SECRET;
+const rendererToken = process.env.CMS_RENDERER_TOKEN;
 const rendererAccess = ({ req }: { req: { headers?: Headers } }) =>
   Boolean(
     rendererToken && req.headers?.get("x-cms-renderer-token") === rendererToken,
@@ -26,20 +25,22 @@ const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
   return false;
 };
 
-const enforceTenantWrite = ({
+export const enforceTenantWrite = ({
   req,
   data,
+  originalDoc,
 }: {
   req: { user?: unknown };
   data: { tenant?: string | { id: string } };
+  originalDoc?: { tenant?: string | { id: string } };
 }) => {
   const userTenant = req.user ? (req.user as TenantUser).tenant : undefined;
   if (!userTenant) return data;
-  if (!data.tenant) throw new Error("A tenant is required for this content.");
+  const tenant = data.tenant ?? originalDoc?.tenant;
+  if (!tenant) throw new Error("A tenant is required for this content.");
   const userTenantID =
     typeof userTenant === "string" ? userTenant : userTenant.id;
-  const dataTenantID =
-    typeof data.tenant === "string" ? data.tenant : data.tenant.id;
+  const dataTenantID = typeof tenant === "string" ? tenant : tenant.id;
   if (userTenantID !== dataTenantID)
     throw new Error("You cannot modify content for another tenant.");
   return data;

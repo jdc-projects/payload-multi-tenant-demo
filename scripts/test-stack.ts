@@ -26,6 +26,7 @@ const s3ConsolePort = Number(
 const root = process.cwd();
 const children: ChildProcess[] = [];
 let cleaned = false;
+let ownsProject = false;
 const composeProject =
   process.env.TEST_COMPOSE_PROJECT ?? `payload-demo-${process.pid}`;
 const manifestFile = `${root}/.test-stack-${composeProject}.json`;
@@ -46,6 +47,7 @@ const testEnv = {
   PROXY_HOST: "127.0.0.1",
   PROXY_PORT: String(proxyPort),
   NEXT_DIST_DIR: `.next-${composeProject}`,
+  CMS_RENDERER_TOKEN: process.env.CMS_RENDERER_TOKEN ?? "test-renderer-token",
   S3_BUCKET: process.env.S3_BUCKET ?? "payload-media",
   S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "payload",
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "payload-secret",
@@ -68,7 +70,8 @@ function cleanupStaleManagedProjects() {
   for (const { Name: name } of projects)
     if (
       name &&
-      reconcilableProjectPattern.test(name) &&
+      (reconcilableProjectPattern.test(name) ||
+        fs.existsSync(`${root}/.test-stack-${name}.json`)) &&
       name !== composeProject
     )
       reconcileStaleProject(name);
@@ -184,6 +187,7 @@ async function waitFor(url: string, timeout = 120_000) {
 function cleanup() {
   if (cleaned) return;
   cleaned = true;
+  if (!ownsProject) return;
   for (const child of children) {
     if (!child.pid) continue;
     killProcessTree(child.pid);
@@ -241,10 +245,7 @@ async function main() {
   assertMode();
   claimManagedProject();
   cleanupStaleManagedProjects();
-  fs.writeFileSync(
-    manifestFile,
-    JSON.stringify({ pid: process.pid, project: composeProject }),
-  );
+  writeManifest();
   await startInfrastructure();
   await prepareCms();
   if (mode === "build") return finishBuild();
@@ -254,12 +255,35 @@ async function main() {
 function claimManagedProject() {
   if (!managedProjectPattern.test(composeProject))
     throw new Error("TEST_COMPOSE_PROJECT must start with payload-demo-.");
-  if (!fs.existsSync(manifestFile)) return;
-  if (isManagedProjectLive(manifestFile, composeProject))
-    throw new Error(
-      `Managed test project is already running: ${composeProject}`,
+  if (fs.existsSync(manifestFile)) {
+    if (isManagedProjectLive(manifestFile, composeProject))
+      throw new Error(
+        `Managed test project is already running: ${composeProject}`,
+      );
+    try {
+      fs.unlinkSync(manifestFile);
+    } catch {
+      throw new Error(
+        `Managed test project is already claimed: ${composeProject}`,
+      );
+    }
+  }
+}
+
+function writeManifest() {
+  try {
+    const descriptor = fs.openSync(manifestFile, "wx");
+    fs.writeFileSync(
+      descriptor,
+      JSON.stringify({ pid: process.pid, project: composeProject }),
     );
-  fs.unlinkSync(manifestFile);
+    fs.closeSync(descriptor);
+    ownsProject = true;
+  } catch {
+    throw new Error(
+      `Managed test project is already claimed: ${composeProject}`,
+    );
+  }
 }
 
 function assertMode() {
@@ -383,5 +407,6 @@ process.once("SIGTERM", () => {
 process.once("exit", cleanup);
 void main().catch((error) => {
   console.error(error);
+  cleanup();
   process.exitCode = 1;
 });
