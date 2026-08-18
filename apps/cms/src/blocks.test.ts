@@ -12,4 +12,12 @@ describe("page block registry", () => {
       "featureGrid",
     ]);
   });
+
+  it("requires alternatives for uploaded images", () => {
+    const image = pageBlocks.find((block) => block.slug === "image");
+    const alt = image?.fields.find(
+      (field) => "name" in field && field.name === "alt",
+    );
+    expect(alt).toMatchObject({ name: "alt", required: true });
+  });
 });

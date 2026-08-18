@@ -18,7 +18,10 @@ export default async function TenantPage({
   return (
     <main
       style={
-        { "--accent": page.tenant.theme?.primaryColor } as React.CSSProperties
+        {
+          "--accent": page.tenant.theme?.primaryColor ?? "#4c1d95",
+          fontFamily: page.tenant.theme?.fontFamily,
+        } as React.CSSProperties
       }
     >
       <Blocks blocks={page.layout} />
