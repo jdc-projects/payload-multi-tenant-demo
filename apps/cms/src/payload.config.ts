@@ -15,13 +15,8 @@ const webURL =
   process.env.NEXT_PUBLIC_WEB_URL ??
   `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
 const payloadSecret = process.env.PAYLOAD_SECRET;
-if (
-  process.env.NODE_ENV === "production" &&
-  (!payloadSecret || payloadSecret === "local-only-secret-change-me")
-)
-  throw new Error(
-    "PAYLOAD_SECRET must be configured with a production secret.",
-  );
+if (!payloadSecret)
+  throw new Error("PAYLOAD_SECRET must be configured in the environment.");
 
 export default buildConfig({
   admin: {
@@ -34,7 +29,7 @@ export default buildConfig({
   collections: [Users, Tenants, Pages, Media],
   editor: lexicalEditor(),
   sharp,
-  secret: payloadSecret ?? "local-only-secret-change-me",
+  secret: payloadSecret,
   db: postgresAdapter({
     pool: {
       connectionString: databaseURL,

@@ -44,7 +44,6 @@ const testEnv = {
   PROXY_HOST: "127.0.0.1",
   PROXY_PORT: String(proxyPort),
   NEXT_DIST_DIR: `.next-${composeProject}`,
-  PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? "test-only-secret",
   S3_BUCKET: process.env.S3_BUCKET ?? "payload-media",
   S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "payload",
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "payload-secret",
@@ -56,7 +55,7 @@ function cleanupStaleManagedProjects() {
   try {
     const output = execFileSync(
       "docker",
-      ["compose", "ls", "--format", "json"],
+      ["compose", "ls", "--all", "--format", "json"],
       { cwd: root, encoding: "utf8" },
     );
     projects = JSON.parse(output) as Array<{ Name?: string }>;
@@ -71,7 +70,7 @@ function cleanupStaleManagedProjects() {
 
 function reconcileStaleProject(name: string) {
   const manifest = `${root}/.test-stack-${name}.json`;
-  if (isManagedProjectLive(manifest)) return;
+  if (isManagedProjectLive(manifest, name)) return;
   try {
     fs.unlinkSync(manifest);
   } catch {
@@ -98,13 +97,16 @@ function reconcileStaleProject(name: string) {
   }
 }
 
-function isManagedProjectLive(manifest: string) {
+function isManagedProjectLive(manifest: string, project: string) {
   if (!fs.existsSync(manifest)) return false;
   try {
-    const { pid } = JSON.parse(fs.readFileSync(manifest, "utf8")) as {
+    const { pid, project: manifestProject } = JSON.parse(
+      fs.readFileSync(manifest, "utf8"),
+    ) as {
       pid?: number;
+      project?: string;
     };
-    if (!pid) return false;
+    if (!pid || manifestProject !== project) return false;
     return execFileSync("ps", ["-p", String(pid), "-o", "command="], {
       encoding: "utf8",
     }).includes("scripts/test-stack.ts");
@@ -170,11 +172,11 @@ async function waitFor(url: string, timeout = 120_000) {
 function cleanup() {
   if (cleaned) return;
   cleaned = true;
-  normalizeNextEnvFiles();
   for (const child of children) {
     if (!child.pid) continue;
     killProcessTree(child.pid);
   }
+  normalizeNextEnvFiles();
   removeNextDistDirs(composeProject);
   try {
     execFileSync(

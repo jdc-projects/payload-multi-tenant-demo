@@ -9,6 +9,9 @@
   handle /api* {
     reverse_proxy {$CMS_UPSTREAM}
   }
+  handle /media* {
+    reverse_proxy {$CMS_UPSTREAM}
+  }
   handle {
     reverse_proxy {$WEB_UPSTREAM}
   }

@@ -13,7 +13,7 @@ The local demo needs enough access for a single authenticated Payload administra
 - Authenticated Payload users may administer tenant and media records in the local demo.
 - Public visitors may read published pages and media but cannot write through Payload access controls.
 - Role-based tenant administration and protected media ownership remain follow-up work.
-- Local and managed test environments may use documented development secrets; production mode fails unless `PAYLOAD_SECRET` is explicitly configured with a non-default value.
+- Every runtime must receive `PAYLOAD_SECRET` from the environment; `.env.example` documents the local value and no code-level fallback exists.
 - CI, deployments, and GitHub Actions are outside the current local-only demo scope.
 
 ## Options

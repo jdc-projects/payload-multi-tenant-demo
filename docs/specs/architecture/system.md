@@ -37,7 +37,7 @@ Blocks are declared in `apps/cms/src/blocks.ts` and therefore cannot be added or
 
 ## Access Boundaries
 
-This local demo deliberately does not model role-based CMS administration. Authenticated Payload users may administer shared tenant and media records; this is not a public write surface. Public visitors may read published pages and media, but cannot write through Payload access controls. Production deployments require an explicit `PAYLOAD_SECRET`; local development and managed tests may use their documented local defaults.
+This local demo deliberately does not model role-based CMS administration. Authenticated Payload users may administer shared tenant and media records; this is not a public write surface. Public visitors may read published pages and media, but cannot write through Payload access controls. Every runtime requires `PAYLOAD_SECRET` from the environment; local development and managed tests use the value supplied by `.env` or the caller.
 
 ## Gaps
 

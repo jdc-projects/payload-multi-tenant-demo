@@ -19,4 +19,8 @@ test("CMS admin assets load through the Caddy proxy", async ({ page }) => {
   expect(
     assetUrls.every((url) => new URL(url).pathname.startsWith("/cms/")),
   ).toBe(true);
+  for (const assetUrl of assetUrls) {
+    const assetResponse = await page.request.get(assetUrl);
+    expect(assetResponse.ok()).toBe(true);
+  }
 });
