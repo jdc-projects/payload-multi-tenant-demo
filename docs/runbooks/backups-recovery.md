@@ -21,6 +21,11 @@ when intentionally operating on a named project.
 
 ```sh
 set -eu
+# Compose reads .env for interpolation, while the commands below also need the
+# values exported into pg_dump/pg_restore and the volume names.
+set -a
+. ./.env
+set +a
 PROJECT="${TEST_COMPOSE_PROJECT:-payload-multi-tenant-demo}"
 COMPOSE="docker compose -p ${PROJECT} -f infra/docker-compose.yml"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -34,6 +39,16 @@ Quiesce the CMS (stop host applications or use a maintenance window). Keep
 Postgres running for its consistent dump, then archive RustFS while stopped:
 
 ```sh
+rustfs_stopped=0
+restart_rustfs() {
+  status=$?
+  if [ "${rustfs_stopped}" -eq 1 ]; then
+    ${COMPOSE} start rustfs >/dev/null || true
+  fi
+  exit "${status}"
+}
+trap restart_rustfs EXIT
+
 ${COMPOSE} exec -T postgres pg_dump \
   -U "${POSTGRES_USER:-payload}" -d "${POSTGRES_DB:-payload}" \
   --format=custom --file=/tmp/payload.dump
@@ -41,15 +56,18 @@ ${COMPOSE} cp postgres:/tmp/payload.dump "${DEST}/payload.dump"
 ${COMPOSE} exec -T postgres rm -f /tmp/payload.dump
 
 ${COMPOSE} stop rustfs
+rustfs_stopped=1
 docker run --rm -v "${PROJECT}_rustfs-data:/data:ro" \
   -v "$(pwd)/${DEST}:/backup" alpine:3.20 \
   tar -czf /backup/rustfs-data.tar.gz -C /data .
 ${COMPOSE} start rustfs
+rustfs_stopped=0
+trap - EXIT
 shasum -a 256 "${DEST}"/* > "${DEST}/SHA256SUMS"
 
 shasum -a 256 -c "${DEST}/SHA256SUMS"
-pg_restore --list "${DEST}/payload.dump" | head
-tar -tzf "${DEST}/rustfs-data.tar.gz" | head
+pg_restore --list "${DEST}/payload.dump" > /dev/null
+tar -tzf "${DEST}/rustfs-data.tar.gz" > /dev/null
 ```
 
 `PROJECT` must exactly match the Compose project (`docker compose ls`); the
@@ -62,19 +80,39 @@ Restore is destructive. Verify `PROJECT` and `DEST`, stop CMS/web processes,
 and preserve failed volumes first if investigation is needed:
 
 ```sh
+set -eu
+set -a
+. ./.env
+set +a
+PROJECT="${TEST_COMPOSE_PROJECT:-payload-multi-tenant-demo}"
+COMPOSE="docker compose -p ${PROJECT} -f infra/docker-compose.yml"
+: "${DEST:?set DEST to the backup directory before continuing}"
+
 ${COMPOSE} down
 docker volume rm "${PROJECT}_postgres-data" "${PROJECT}_rustfs-data"
-${COMPOSE} up -d postgres rustfs
+${COMPOSE} up -d --wait postgres rustfs
 ${COMPOSE} cp "${DEST}/payload.dump" postgres:/tmp/payload.dump
 ${COMPOSE} exec -T postgres pg_restore -U "${POSTGRES_USER:-payload}" \
   -d "${POSTGRES_DB:-payload}" --clean --if-exists /tmp/payload.dump
 ${COMPOSE} exec -T postgres rm -f /tmp/payload.dump
 
+rustfs_stopped=0
+restart_rustfs() {
+  status=$?
+  if [ "${rustfs_stopped}" -eq 1 ]; then
+    ${COMPOSE} start rustfs >/dev/null || true
+  fi
+  exit "${status}"
+}
+trap restart_rustfs EXIT
 ${COMPOSE} stop rustfs
+rustfs_stopped=1
 docker run --rm -v "${PROJECT}_rustfs-data:/data" \
   -v "$(pwd)/${DEST}:/backup:ro" alpine:3.20 \
   sh -c 'rm -rf /data/* /data/.[!.]* /data/..?*; tar -xzf /backup/rustfs-data.tar.gz -C /data'
 ${COMPOSE} start rustfs
+rustfs_stopped=0
+trap - EXIT
 ```
 
 Wait for services to become healthy, start the CMS, and verify admin login,
