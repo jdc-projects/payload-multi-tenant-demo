@@ -25,7 +25,7 @@
     "test:e2e": "playwright test --config=tests/playwright/e2e.config.ts",
     "test:artillery": "tsx scripts/test-stack.ts artillery",
     "test:mutation": "stryker run",
-    "check:react-doctor": "CI=1 react-doctor -y --no-telemetry apps/web",
+    "check:react-doctor": "CI=1 react-doctor -y --no-telemetry apps/web/src",
     "check:fallow": "fallow audit",
     "typecheck": "turbo run typecheck && tsc -p tests/tsconfig.json --noEmit",
     "validate": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm run check:react-doctor && npm run check:fallow && npm run test"
