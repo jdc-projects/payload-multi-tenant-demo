@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "paths": { "@/*": ["src/*"], "@payload-config": ["src/payload.config.ts"] }
+  },
+  "include": ["src/**/*.ts"]
+}
