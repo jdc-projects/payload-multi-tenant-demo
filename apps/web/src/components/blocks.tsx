@@ -10,7 +10,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconCircleCheck } from "@tabler/icons-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Page } from "../lib/cms";
 
 export function Blocks({ blocks }: { blocks: Page["layout"] }) {
@@ -64,14 +64,9 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
         {actions?.length ? (
           <Group wrap="wrap">
             {actions.map((action) => (
-              <Button
-                component="a"
-                href={safeHref(action.href)}
-                key={action.label}
-                color="var(--accent)"
-              >
+              <TenantButton href={safeHref(action.href)} key={action.label}>
                 {action.label}
-              </Button>
+              </TenantButton>
             ))}
           </Group>
         ) : null}
@@ -105,15 +100,34 @@ function CallToActionBlock({ block }: { block: Record<string, unknown> }) {
       <Card withBorder padding="xl">
         <Title order={2}>{String(block.heading)}</Title>
         {block.body ? <Text my="md">{String(block.body)}</Text> : null}
-        <Button
-          component="a"
-          href={safeHref(String(block.href))}
-          color="var(--accent)"
-        >
+        <TenantButton href={safeHref(String(block.href))}>
           {String(block.label)}
-        </Button>
+        </TenantButton>
       </Card>
     </Container>
+  );
+}
+
+function TenantButton({
+  children,
+  href,
+}: {
+  children: ReactNode;
+  href: string;
+}) {
+  return (
+    <Button
+      component="a"
+      href={href}
+      color="var(--accent)"
+      style={
+        {
+          "--button-color": "var(--accent-foreground)",
+        } as CSSProperties
+      }
+    >
+      {children}
+    </Button>
   );
 }
 

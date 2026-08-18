@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Blocks } from "../../../components/blocks";
 import { getPage, getPagePaths } from "../../../lib/cms";
+import { accessibleTextColor } from "../../../lib/theme";
 
 export const dynamicParams = true;
 export const revalidate = 60;
@@ -20,7 +21,13 @@ export default async function TenantPage({
       style={
         {
           "--accent": page.tenant.theme?.primaryColor ?? "#4c1d95",
-          fontFamily: page.tenant.theme?.fontFamily,
+          "--accent-foreground": accessibleTextColor(
+            page.tenant.theme?.primaryColor,
+          ),
+          "--mantine-font-family":
+            page.tenant.theme?.fontFamily ?? "Inter, system-ui, sans-serif",
+          "--mantine-heading-font-family":
+            page.tenant.theme?.fontFamily ?? "Inter, system-ui, sans-serif",
         } as React.CSSProperties
       }
     >
