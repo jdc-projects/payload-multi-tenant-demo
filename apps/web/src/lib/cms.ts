@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 const cmsUrl =
   process.env.NEXT_PUBLIC_CMS_URL ??
   `${process.env.CMS_PROTOCOL ?? "http"}://${process.env.CMS_HOST ?? "localhost"}:${process.env.CMS_PORT ?? "3001"}`;
@@ -19,17 +21,30 @@ export type Page = {
 
 type Tenant = { slug: string };
 
-export async function getPage(tenant: string, slug = ""): Promise<Page | null> {
+export async function getPage(
+  tenant: string,
+  slug = "",
+  preview = false,
+): Promise<Page | null> {
   const params = new URLSearchParams({
     where: JSON.stringify({
       and: [{ "tenant.slug": { equals: tenant } }, { slug: { equals: slug } }],
     }),
     depth: "2",
   });
-  const response = await fetch(`${cmsUrl}/api/pages?${params}`, {
-    headers: cmsHeaders,
-    next: { revalidate: 60, tags: [`page:${tenant}:${slug}`] },
-  });
+  if (preview) params.set("draft", "true");
+  const headers = new Headers(cmsHeaders);
+  if (preview) {
+    const cookie = await cookies();
+    const cookieHeader = cookie.toString();
+    if (cookieHeader) headers.set("cookie", cookieHeader);
+  }
+  const response = await fetch(
+    `${cmsUrl}/api/pages?${params}`,
+    preview
+      ? { headers, cache: "no-store" }
+      : { headers, next: { revalidate: 60, tags: [`page:${tenant}:${slug}`] } },
+  );
   if (!response.ok) return null;
   return ((await response.json()) as { docs: Page[] }).docs[0] ?? null;
 }

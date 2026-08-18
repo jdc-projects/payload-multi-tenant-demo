@@ -53,10 +53,10 @@ export default buildConfig({
     user: "users",
     livePreview: {
       url: ({ data }) =>
-        tenantPreviewURL({
+        `${tenantPreviewURL({
           tenant: data?.tenant?.slug ?? "demo1",
           slug: data?.slug ?? "",
-        }),
+        })}?preview=true`,
     },
   },
   collections: [Users, Tenants, Pages, Media],
