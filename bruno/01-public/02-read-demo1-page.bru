@@ -1,0 +1,28 @@
+meta {
+  name: Read demo1 published home
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:{{proxyPort}}/api/pages?where[and][0][tenant.slug][equals]=demo1&where[and][1][slug][equals]=&depth=2
+  body: none
+  auth: none
+}
+
+headers {
+  x-cms-renderer-token: {{rendererToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.docs: isArray
+  res.body.docs[0]._status: eq published
+  res.body.docs[0].tenant.slug: eq demo1
+}
+
+script:post-response {
+  const body = res.getBody();
+  const page = body.docs[0];
+  if (page?.id) bru.setVar("demo1PageId", page.id);
+}

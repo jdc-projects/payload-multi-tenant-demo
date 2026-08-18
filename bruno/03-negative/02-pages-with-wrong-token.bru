@@ -1,0 +1,19 @@
+meta {
+  name: Reject page read with wrong token
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:{{proxyPort}}/api/pages?limit=1
+  body: none
+  auth: none
+}
+
+headers {
+  x-cms-renderer-token: wrong-token
+}
+
+assert {
+  res.status: eq 403
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Scope page query to requested tenant
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://localhost:{{proxyPort}}/api/pages?where[and][0][tenant.slug][equals]=demo2&where[and][1][slug][equals]=&depth=2
+  body: none
+  auth: none
+}
+
+headers {
+  x-cms-renderer-token: {{rendererToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.docs: isArray
+  res.body.docs[0].tenant.slug: eq demo2
+}

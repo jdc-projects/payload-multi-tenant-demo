@@ -1,0 +1,28 @@
+meta {
+  name: Reject unauthenticated page write
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:{{proxyPort}}/api/pages
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "title": "Must not be created",
+    "tenant": "not-a-tenant",
+    "slug": "bruno-negative",
+    "layout": []
+  }
+}
+
+assert {
+  res.status: in [401, 403]
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Save demo1 draft
+  type: http
+  seq: 2
+}
+
+patch {
+  url: http://localhost:{{proxyPort}}/api/pages/{{demo1PageId}}?draft=true
+  body: json
+  auth: bearer
+}
+
+headers {
+  content-type: application/json
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+body:json {
+  {
+    "title": "Acme Studio"
+  }
+}
+
+assert {
+  res.status: in [200, 201]
+  res.body.id: eq {{demo1PageId}}
+  res.body._status: eq draft
+}
