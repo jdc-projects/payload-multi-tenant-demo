@@ -10,14 +10,14 @@ Payload is the source of truth for tenant configuration, page content, media, an
 
 ## Runtime
 
-| Area     | Target                                     | Initial scaffold                   |
-| -------- | ------------------------------------------ | ---------------------------------- |
-| Monorepo | npm workspaces and Turborepo               | Present                            |
-| CMS      | Payload with PostgreSQL                    | Present                            |
-| Media    | S3-compatible object storage               | RustFS and Payload adapter present |
-| Web      | Next.js hybrid rendering/ISR and Mantine   | Implemented                        |
-| Routing  | Caddy path routing, future domain resolver | Path routing implemented           |
-| APIs     | Versioned service prefixes                 | Payload `/api` prefix              |
+| Area     | Target                                            | Initial scaffold                      |
+| -------- | ------------------------------------------------- | ------------------------------------- |
+| Monorepo | npm workspaces and Turborepo                      | Present                               |
+| CMS      | Payload with PostgreSQL                           | Present                               |
+| Media    | S3-compatible object storage                      | RustFS and Payload adapter present    |
+| Web      | Next.js hybrid rendering/ISR and Mantine          | Implemented                           |
+| Routing  | Caddy path routing and configurable host resolver | Path routing and resolver implemented |
+| APIs     | Versioned service prefixes                        | Payload `/api` prefix                 |
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ flowchart LR
   Web -. cached request/revalidation .-> CMS
 ```
 
-Tenant resolution is currently `/{tenant}/{slug}`. The resolver boundary is `getPage` in `apps/web/src/lib/cms.ts`; domain and subdomain mapping can be added there without changing component rendering.
+Tenant resolution defaults to `/{tenant}/{slug}` and is implemented by `TenantResolver` in `apps/web/src/lib/tenant-resolver.ts`. Domain and subdomain requests are accepted only for explicitly trusted hosts and rewritten to the same route, preserving CMS queries and tenant isolation. See [ADR 0003](../../decisions/0003-configurable-tenant-resolution.md) for configuration and canonical/preview URL rules.
 
 ## Component model
 

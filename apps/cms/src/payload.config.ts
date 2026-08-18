@@ -17,13 +17,43 @@ const webURL =
 const payloadSecret = process.env.PAYLOAD_SECRET;
 if (!payloadSecret)
   throw new Error("PAYLOAD_SECRET must be configured in the environment.");
+const tenantPreviewURL = ({
+  tenant,
+  slug,
+}: {
+  tenant: string;
+  slug: string;
+}) => {
+  const strategy = process.env.TENANT_RESOLUTION_STRATEGY ?? "path";
+  if (strategy === "domain") {
+    try {
+      const domains = JSON.parse(
+        process.env.TENANT_DOMAIN_MAP ?? "{}",
+      ) as Record<string, string>;
+      if (domains[tenant]) {
+        const domain = domains[tenant].includes("://")
+          ? domains[tenant]
+          : `${process.env.WEB_PROTOCOL ?? "http"}://${domains[tenant]}`;
+        return `${domain.replace(/\/$/, "")}/${slug}`;
+      }
+    } catch {
+      // Invalid optional mapping falls back to the safe path URL.
+    }
+  }
+  if (strategy === "subdomain" && process.env.TENANT_BASE_DOMAIN)
+    return `${process.env.WEB_PROTOCOL ?? "http"}://${tenant}.${process.env.TENANT_BASE_DOMAIN}/${slug}`;
+  return `${webURL}/${tenant}/${slug}`;
+};
 
 export default buildConfig({
   admin: {
     user: "users",
     livePreview: {
       url: ({ data }) =>
-        `${webURL}/${data?.tenant?.slug ?? "demo1"}/${data?.slug ?? ""}`,
+        tenantPreviewURL({
+          tenant: data?.tenant?.slug ?? "demo1",
+          slug: data?.slug ?? "",
+        }),
     },
   },
   collections: [Users, Tenants, Pages, Media],
