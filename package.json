@@ -1,0 +1,31 @@
+{
+  "name": "payload-multi-tenant-demo",
+  "private": true,
+  "packageManager": "npm@12.0.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "dev:infra": "docker compose -f infra/docker-compose.yml up -d",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "seed": "npm run seed:cms",
+    "seed:cms": "tsx apps/cms/src/seed.ts",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "typecheck": "turbo run typecheck",
+    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "prettier": "^3",
+    "tsx": "^4",
+    "turbo": "^2"
+  }
+}

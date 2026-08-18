@@ -1,0 +1,26 @@
+{
+  "name": "@demo/cms",
+  "private": true,
+  "scripts": {
+    "build": "payload generate:types && tsc",
+    "dev": "payload dev",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@payloadcms/db-postgres": "^3",
+    "@payloadcms/next": "^3",
+    "@payloadcms/storage-s3": "^3",
+    "@payloadcms/richtext-lexical": "^3",
+    "graphql": "^16",
+    "payload": "^3",
+    "sharp": "^0.35"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}
