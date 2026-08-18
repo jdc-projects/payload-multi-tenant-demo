@@ -66,9 +66,16 @@ trap - EXIT
 shasum -a 256 "${DEST}"/* > "${DEST}/SHA256SUMS"
 
 shasum -a 256 -c "${DEST}/SHA256SUMS"
-pg_restore --list "${DEST}/payload.dump" > /dev/null
+${COMPOSE} run --rm --no-deps -T \
+  -v "$(pwd)/${DEST}:/backup:ro" postgres \
+  pg_restore --list /backup/payload.dump >/dev/null
 tar -tzf "${DEST}/rustfs-data.tar.gz" > /dev/null
 ```
+
+The archive listing is read to completion by the PostgreSQL container; the
+command fails if `pg_restore` cannot read the custom-format dump. The container
+uses the Compose PostgreSQL image and environment, so custom `POSTGRES_DB` and
+`POSTGRES_USER` values remain in effect without requiring host `pg_restore`.
 
 `PROJECT` must exactly match the Compose project (`docker compose ls`); the
 default development project is the repository directory name. Store the
