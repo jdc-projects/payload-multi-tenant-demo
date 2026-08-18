@@ -27,6 +27,13 @@ The default development ports are configurable without changing source files:
 
 - `CMS_PROTOCOL`, `CMS_HOST`, and `CMS_PORT` for Payload/Next CMS
 - `WEB_PROTOCOL`, `WEB_HOST`, and `WEB_PORT` for the Next frontend
+
+Tenant routing defaults to path prefixes. For host-based local testing, configure
+`TENANT_RESOLUTION_STRATEGY`, `TENANT_TRUSTED_HOSTS`, and either
+`TENANT_DOMAIN_MAP` or `TENANT_BASE_DOMAIN` as described in
+[ADR 0003](../decisions/0003-configurable-tenant-resolution.md). Do not enable
+host-based routing without an explicit trusted-host list.
+
 - `PROXY_PROTOCOL`, `PROXY_HOST`, and `PROXY_PORT` for Caddy
 - `POSTGRES_PROTOCOL`, `POSTGRES_HOST`, and `POSTGRES_PORT` for PostgreSQL
 - `S3_PROTOCOL`, `S3_HOST`, and `S3_PORT` for RustFS S3
