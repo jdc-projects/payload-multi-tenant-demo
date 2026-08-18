@@ -10,7 +10,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsx scripts/test-stack.ts build",
+    "build": "node --env-file-if-exists=.env node_modules/turbo/bin/turbo run build",
+    "build:managed": "tsx scripts/test-stack.ts build",
     "dev": "npm run dev:infra && node --env-file-if-exists=.env node_modules/turbo/bin/turbo run dev --parallel",
     "dev:infra": "tsx scripts/infra.ts up",
     "test:stack": "tsx scripts/test-stack.ts",
@@ -28,7 +29,7 @@
     "check:react-doctor": "CI=1 react-doctor -y --no-telemetry apps/web/src",
     "check:fallow": "fallow audit",
     "typecheck": "turbo run typecheck && tsc -p tests/tsconfig.json --noEmit",
-    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm run check:react-doctor && npm run check:fallow && npm run test"
+    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run build:managed && npm run check:react-doctor && npm run check:fallow && npm run test"
   },
   "devDependencies": {
     "prettier": "^3",
