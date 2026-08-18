@@ -8,12 +8,20 @@ This runbook starts the initial local Payload multi-tenant demo.
 
 1. Install Node 24 and run `npm install`.
 2. Copy `.env.example` to `.env` and replace `PAYLOAD_SECRET`.
-3. Run `npm run dev`.
-4. Run `npm run seed` after the CMS is listening.
+3. Run `npm run dev`. This starts PostgreSQL, RustFS, and Caddy, then both
+   Next applications in watch mode. The command waits for CMS, web, and the
+   proxy to be ready before reporting the browser URL.
+4. Run `npm run seed` after the CMS is listening (or in a second terminal once
+   the ready message appears).
 
 ## Validation
 
-Open `http://localhost:8888/admin`, then visit `http://localhost:8888/demo1/`, `demo2`, and `demo3`. CMS admin assets are served through the `/cms/_next/` proxy route. Re-running the seed must not create duplicate tenants or home pages. Stop the command with Ctrl-C; development data volumes are retained.
+Open the printed proxy URL followed by `/admin`, then visit `/demo1/`,
+`/demo2/`, and `/demo3/`. Caddy routes browser traffic, CMS admin/API/media,
+and admin assets (`/cms/_next/`) through the same entrypoint. Application logs
+are streamed in the terminal. If either watch process fails, or when stopped
+with Ctrl-C, the workflow stops only its containers; development data volumes
+are retained.
 
 ## Port Overrides
 
