@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export const FIXTURE_VERSION = 1;
 export type SeedFixture = {
   version: 1;
   tenants: Array<{
@@ -62,7 +61,7 @@ export function fixturePath(file = "fixtures/v1.json") {
 
 export async function readFixture(file: string): Promise<SeedFixture> {
   const parsed = JSON.parse(await fs.readFile(file, "utf8")) as SeedFixture;
-  if (parsed.version !== FIXTURE_VERSION)
+  if (parsed.version !== 1)
     throw new Error(`Unsupported fixture version: ${String(parsed.version)}`);
   return parsed;
 }

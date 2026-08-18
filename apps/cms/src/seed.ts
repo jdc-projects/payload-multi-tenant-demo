@@ -78,6 +78,123 @@ async function exportFixture(output: string) {
   await payload.db.destroy?.();
 }
 
+type PayloadClient = Awaited<ReturnType<typeof getPayload>>;
+
+async function importTenant(
+  payload: PayloadClient,
+  tenant: SeedFixture["tenants"][number],
+  force: boolean,
+  tenantIDs: Map<string, string>,
+) {
+  const existing = await payload.find({
+    collection: "tenants",
+    where: { slug: { equals: tenant.slug } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const record = existing.docs[0];
+  if (!record) {
+    const created = await payload.create({
+      collection: "tenants",
+      data: tenant,
+      overrideAccess: true,
+    });
+    tenantIDs.set(tenant.slug, String(created.id));
+    return false;
+  }
+  tenantIDs.set(tenant.slug, String(record.id));
+  if (force) {
+    await payload.update({
+      collection: "tenants",
+      id: record.id,
+      data: tenant,
+      overrideAccess: true,
+    });
+    return false;
+  }
+  const changed =
+    JSON.stringify(normalize(record)) !== JSON.stringify(normalize(tenant));
+  if (changed) {
+    console.warn(
+      `Skipped changed tenant ${tenant.slug}; use --force to overwrite`,
+    );
+  }
+  return changed;
+}
+
+async function importMedia(
+  payload: PayloadClient,
+  media: SeedFixture["media"][number],
+  mediaIDs: Map<string, string>,
+) {
+  const existing = await payload.find({
+    collection: "media",
+    where: { filename: { equals: media.ref } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const record = existing.docs[0];
+  if (record) {
+    mediaIDs.set(media.ref, String(record.id));
+    return;
+  }
+  console.warn(
+    `Media ref ${media.ref} is not present; upload it before importing pages`,
+  );
+}
+
+async function importPage(
+  payload: PayloadClient,
+  page: SeedFixture["pages"][number],
+  force: boolean,
+  tenantIDs: Map<string, string>,
+  mediaIDs: Map<string, string>,
+) {
+  const slug = String(page.slug ?? "");
+  const tenantSlug = page.tenant;
+  const tenant = tenantIDs.get(tenantSlug);
+  if (!tenant)
+    throw new Error(`Fixture page references unknown tenant ${tenantSlug}`);
+  const data = {
+    ...page,
+    tenant,
+    layout: resolveMediaRefs(page.layout, mediaIDs),
+  };
+  const existing = await payload.find({
+    collection: "pages",
+    where: {
+      and: [{ tenant: { equals: tenant } }, { slug: { equals: slug } }],
+    },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  });
+  const record = existing.docs[0];
+  if (!record) {
+    await payload.create({ collection: "pages", data, overrideAccess: true });
+    return false;
+  }
+  if (force) {
+    await payload.update({
+      collection: "pages",
+      id: record.id,
+      data,
+      overrideAccess: true,
+    });
+    return false;
+  }
+  const changed =
+    JSON.stringify(normalize(record)) !== JSON.stringify(normalize(data));
+  if (changed) {
+    console.warn(
+      `Skipped changed page ${tenantSlug}/${slug}; use --force to overwrite`,
+    );
+  }
+  return changed;
+}
+
 async function importFixture(input: string, force: boolean) {
   const fixture = await readFixture(input);
   const payload = await getPayload({ config });
@@ -85,93 +202,14 @@ async function importFixture(input: string, force: boolean) {
   const mediaIDs = new Map<string, string>();
   let skipped = 0;
   for (const tenant of fixture.tenants) {
-    const existing = await payload.find({
-      collection: "tenants",
-      where: { slug: { equals: tenant.slug } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-    if (existing.docs[0]) {
-      tenantIDs.set(tenant.slug, String(existing.docs[0].id));
-      if (force)
-        await payload.update({
-          collection: "tenants",
-          id: existing.docs[0].id,
-          data: tenant,
-          overrideAccess: true,
-        });
-      else if (
-        JSON.stringify(normalize(existing.docs[0])) !==
-        JSON.stringify(normalize(tenant))
-      ) {
-        skipped++;
-        console.warn(
-          `Skipped changed tenant ${tenant.slug}; use --force to overwrite`,
-        );
-      }
-    } else {
-      const created = await payload.create({
-        collection: "tenants",
-        data: tenant,
-        overrideAccess: true,
-      });
-      tenantIDs.set(tenant.slug, String(created.id));
-    }
+    skipped += Number(await importTenant(payload, tenant, force, tenantIDs));
   }
-  for (const media of fixture.media) {
-    const existing = await payload.find({
-      collection: "media",
-      where: { filename: { equals: media.ref } },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-    if (existing.docs[0]) mediaIDs.set(media.ref, String(existing.docs[0].id));
-    else
-      console.warn(
-        `Media ref ${media.ref} is not present; upload it before importing pages`,
-      );
-  }
+  for (const media of fixture.media)
+    await importMedia(payload, media, mediaIDs);
   for (const page of fixture.pages) {
-    const slug = String(page.slug ?? "");
-    const tenantSlug = page.tenant;
-    const tenant = tenantIDs.get(tenantSlug);
-    if (!tenant)
-      throw new Error(`Fixture page references unknown tenant ${tenantSlug}`);
-    const data = {
-      ...page,
-      tenant,
-      layout: resolveMediaRefs(page.layout, mediaIDs),
-    };
-    const existing = await payload.find({
-      collection: "pages",
-      where: {
-        and: [{ tenant: { equals: tenant } }, { slug: { equals: slug } }],
-      },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-    if (existing.docs[0]) {
-      if (force)
-        await payload.update({
-          collection: "pages",
-          id: existing.docs[0].id,
-          data,
-          overrideAccess: true,
-        });
-      else if (
-        JSON.stringify(normalize(existing.docs[0])) !==
-        JSON.stringify(normalize(data))
-      ) {
-        skipped++;
-        console.warn(
-          `Skipped changed page ${tenantSlug}/${slug}; use --force to overwrite`,
-        );
-      }
-    } else
-      await payload.create({ collection: "pages", data, overrideAccess: true });
+    skipped += Number(
+      await importPage(payload, page, force, tenantIDs, mediaIDs),
+    );
   }
   console.log(`Imported fixture (skipped ${skipped} changed records)`);
   await payload.db.destroy?.();
