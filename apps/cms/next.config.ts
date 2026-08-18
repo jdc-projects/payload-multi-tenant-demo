@@ -3,6 +3,8 @@ import path from "node:path";
 
 const config: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
+  assetPrefix: process.env.CMS_ASSET_PREFIX ?? "/cms",
+  allowedDevOrigins: ["127.0.0.1"],
   outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
   serverExternalPackages: [
     "payload",

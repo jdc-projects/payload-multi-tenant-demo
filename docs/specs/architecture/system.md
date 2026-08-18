@@ -35,6 +35,10 @@ Tenant resolution is currently `/{tenant}/{slug}`. The resolver boundary is `get
 
 Blocks are declared in `apps/cms/src/blocks.ts` and therefore cannot be added or changed by editors. Editors configure field values and arrange the approved blocks in a page layout. The renderer maps block slugs to frontend components.
 
+## Access Boundaries
+
+This local demo deliberately does not model role-based CMS administration. Authenticated Payload users may administer shared tenant and media records; this is not a public write surface. Public visitors may read published pages and media, but cannot write through Payload access controls. Production deployments require an explicit `PAYLOAD_SECRET`; local development and managed tests may use their documented local defaults.
+
 ## Gaps
 
-Live preview wiring, authenticated preview URLs, domain mapping, block-level rendering for video and rich text, CI, and cross-app Playwright suites remain follow-up work.
+Authenticated draft preview, domain mapping, CI, editor publishing E2E coverage, media hardening, seed export/import, Bruno coverage, backups, and recovery remain follow-up work.

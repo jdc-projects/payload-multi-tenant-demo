@@ -1,5 +1,15 @@
 :8888 {
-  reverse_proxy /admin* {$CMS_UPSTREAM}
-  reverse_proxy /api* {$CMS_UPSTREAM}
-  reverse_proxy /* {$WEB_UPSTREAM}
+  handle /cms/_next/* {
+    uri strip_prefix /cms
+    reverse_proxy {$CMS_UPSTREAM}
+  }
+  handle /admin* {
+    reverse_proxy {$CMS_UPSTREAM}
+  }
+  handle /api* {
+    reverse_proxy {$CMS_UPSTREAM}
+  }
+  handle {
+    reverse_proxy {$WEB_UPSTREAM}
+  }
 }

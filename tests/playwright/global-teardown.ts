@@ -20,12 +20,8 @@ function stopManagedStack(project: string) {
     );
     if (!command.includes("scripts/test-stack.ts")) return;
     process.kill(manifest.pid, "SIGTERM");
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      try {
-        process.kill(manifest.pid, 0);
-      } catch {
-        return;
-      }
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      if (!fs.existsSync(manifestFile)) return;
       execFileSync("sleep", ["0.1"]);
     }
   } catch {
@@ -39,7 +35,15 @@ export default function globalTeardown() {
   stopManagedStack(project);
   execFileSync(
     "docker",
-    ["compose", "-p", project, "-f", "infra/docker-compose.yml", "down"],
+    [
+      "compose",
+      "-p",
+      project,
+      "-f",
+      "infra/docker-compose.yml",
+      "down",
+      "--volumes",
+    ],
     { env: process.env, stdio: "inherit" },
   );
   for (const app of ["apps/cms", "apps/web"]) {
@@ -50,5 +54,10 @@ export default function globalTeardown() {
       file,
       source.replace(/\.\/\.next-payload-demo-[^/]+/g, "./.next"),
     );
+    if (/^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/.test(project))
+      fs.rmSync(path.resolve(app, `.next-${project}`), {
+        recursive: true,
+        force: true,
+      });
   }
 }

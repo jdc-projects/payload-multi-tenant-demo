@@ -15,6 +15,10 @@ const args = [command, "-p", String(port)];
 if (isCMS && command === "dev") args.splice(1, 0, "--webpack");
 
 const child = spawn("next", args, { stdio: "inherit" });
+child.once("error", (error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.once(signal, () => child.kill(signal));
 child.once("exit", (code, signal) => {

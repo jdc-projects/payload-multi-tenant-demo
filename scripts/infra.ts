@@ -18,4 +18,8 @@ const env = {
   PROXY_PORT: process.env.PROXY_PORT ?? "8888",
 };
 const child = spawn("docker", args, { stdio: "inherit", env });
+child.once("error", (error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 child.once("exit", (code) => process.exit(code ?? 1));

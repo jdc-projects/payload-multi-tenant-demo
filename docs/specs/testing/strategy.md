@@ -1,6 +1,6 @@
 # Testing Strategy
 
-Unit and integration tests use Vitest against source. Playwright web tests isolate the frontend; E2E tests exercise the full CMS and web stack in prod-like mode. Axe-core checks target WCAG 2.2 AA. Artillery covers important APIs and visitor flows. Stryker runs incrementally for affected workspaces and fully on merges to `dev`.
+Unit and integration tests use Vitest against source. Playwright web tests isolate the frontend; E2E tests exercise the full CMS and web stack in prod-like mode. Axe-core checks target WCAG 2.2 AA. Artillery covers important APIs and visitor flows. Stryker runs incrementally for affected workspaces and fully on merges to `dev`. CI and GitHub Actions are intentionally out of scope for the local-only demo.
 
 Every vertical slice should cover component outcomes, tenant isolation, seed idempotency, API behaviour, accessibility, and the relevant visual/user flow. No automated suite targets dev mode.
 
@@ -10,4 +10,4 @@ Every vertical slice should cover component outcomes, tenant isolation, seed ide
 
 `npm run validate` runs formatting, linting, TypeScript, the production build, React Doctor, Fallow, and the complete test command.
 
-Playwright requires browser binaries. The web, E2E, and Artillery commands start their Docker dependencies, real Payload CMS app, hybrid Next web server, and Caddy proxy automatically, then clean them up. External environment runs can be added later as a separate explicitly configured target.
+Playwright requires browser binaries. The web, E2E, and Artillery commands start their Docker dependencies, real Payload CMS app, hybrid Next web server, and Caddy proxy automatically, then stop host processes before removing managed containers, volumes, and generated build directories. External environment runs can be added later as a separate explicitly configured target.

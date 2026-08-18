@@ -1,5 +1,4 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { once } from "node:events";
 import fs from "node:fs";
 import { loadRootEnv } from "./env.js";
 
@@ -30,6 +29,7 @@ let cleaned = false;
 const composeProject =
   process.env.TEST_COMPOSE_PROJECT ?? `payload-demo-${process.pid}`;
 const manifestFile = `${root}/.test-stack-${composeProject}.json`;
+const managedProjectPattern = /^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/;
 const testEnv = {
   ...process.env,
   POSTGRES_HOST: "127.0.0.1",
@@ -64,28 +64,52 @@ function cleanupStaleManagedProjects() {
     return;
   }
 
-  for (const project of projects) {
-    const name = project.Name;
-    if (!name || !/^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/.test(name))
-      continue;
-    if (name === composeProject) continue;
-    try {
-      execFileSync(
-        "docker",
-        [
-          "compose",
-          "-p",
-          name,
-          "-f",
-          "infra/docker-compose.yml",
-          "down",
-          "--remove-orphans",
-        ],
-        { cwd: root, stdio: "inherit" },
-      );
-    } catch {
-      // A stale project may disappear while it is being reconciled.
-    }
+  for (const { Name: name } of projects)
+    if (name && managedProjectPattern.test(name) && name !== composeProject)
+      reconcileStaleProject(name);
+}
+
+function reconcileStaleProject(name: string) {
+  const manifest = `${root}/.test-stack-${name}.json`;
+  if (isManagedProjectLive(manifest)) return;
+  try {
+    fs.unlinkSync(manifest);
+  } catch {
+    // The manifest may not exist for an older abandoned project.
+  }
+  try {
+    execFileSync(
+      "docker",
+      [
+        "compose",
+        "-p",
+        name,
+        "-f",
+        "infra/docker-compose.yml",
+        "down",
+        "--volumes",
+        "--remove-orphans",
+      ],
+      { cwd: root, stdio: "inherit" },
+    );
+    removeNextDistDirs(name);
+  } catch {
+    // A stale project may disappear while it is being reconciled.
+  }
+}
+
+function isManagedProjectLive(manifest: string) {
+  if (!fs.existsSync(manifest)) return false;
+  try {
+    const { pid } = JSON.parse(fs.readFileSync(manifest, "utf8")) as {
+      pid?: number;
+    };
+    if (!pid) return false;
+    return execFileSync("ps", ["-p", String(pid), "-o", "command="], {
+      encoding: "utf8",
+    }).includes("scripts/test-stack.ts");
+  } catch {
+    return false;
   }
 }
 
@@ -101,6 +125,13 @@ function run(
   });
   children.push(child);
   return child;
+}
+
+function waitForExit(child: ChildProcess) {
+  return new Promise<number>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code) => resolve(code ?? 1));
+  });
 }
 
 function killProcessTree(pid: number) {
@@ -144,6 +175,7 @@ function cleanup() {
     if (!child.pid) continue;
     killProcessTree(child.pid);
   }
+  removeNextDistDirs(composeProject);
   try {
     execFileSync(
       "docker",
@@ -154,6 +186,7 @@ function cleanup() {
         "-f",
         "infra/docker-compose.yml",
         "down",
+        "--volumes",
       ],
       { cwd: root, env: testEnv, stdio: "inherit" },
     );
@@ -164,6 +197,16 @@ function cleanup() {
     fs.unlinkSync(manifestFile);
   } catch {
     // The manifest may already have been removed by a fallback teardown.
+  }
+}
+
+function removeNextDistDirs(project: string) {
+  if (!managedProjectPattern.test(project)) return;
+  for (const app of ["apps/cms", "apps/web"]) {
+    fs.rmSync(`${root}/${app}/.next-${project}`, {
+      recursive: true,
+      force: true,
+    });
   }
 }
 
@@ -181,13 +224,24 @@ function normalizeNextEnvFiles() {
 }
 
 async function main() {
-  if (!mode || !["build", "web", "e2e", "artillery"].includes(mode))
-    throw new Error("Usage: test-stack.ts <build|web|e2e|artillery>");
+  assertMode();
   cleanupStaleManagedProjects();
   fs.writeFileSync(
     manifestFile,
     JSON.stringify({ pid: process.pid, project: composeProject }),
   );
+  await startInfrastructure();
+  await prepareCms();
+  if (mode === "build") return finishBuild();
+  await runWebMode();
+}
+
+function assertMode() {
+  if (!mode || !["build", "web", "e2e", "artillery"].includes(mode))
+    throw new Error("Usage: test-stack.ts <build|web|e2e|artillery>");
+}
+
+async function startInfrastructure() {
   const infrastructure = run(
     "docker",
     [
@@ -208,18 +262,17 @@ async function main() {
       },
     },
   );
-  const [infrastructureCode] = (await once(infrastructure, "exit")) as [
-    number | null,
-  ];
-  if (infrastructureCode !== 0)
+  if ((await waitForExit(infrastructure)) !== 0)
     throw new Error("Test infrastructure failed to start");
-  if (mode === "build") {
+}
+
+async function prepareCms() {
+  if (mode === "build")
     execFileSync("npm", ["run", "build", "--workspace", "@demo/cms"], {
       cwd: root,
       env: testEnv,
       stdio: "inherit",
     });
-  }
   const cms = run(
     process.execPath,
     ["--import", "tsx", `${root}/scripts/run-next.ts`, "cms", "dev"],
@@ -239,10 +292,14 @@ async function main() {
     env: testEnv,
     stdio: "inherit",
   });
-  if (mode === "build") {
-    cleanup();
-    process.exit(0);
-  }
+}
+
+function finishBuild() {
+  cleanup();
+  process.exit(0);
+}
+
+async function runWebMode() {
   const web = run(
     process.execPath,
     ["--import", "tsx", `${root}/scripts/run-next.ts`, "web", "start"],
@@ -258,22 +315,26 @@ async function main() {
   });
   await waitFor(`http://127.0.0.1:${proxyPort}/`);
   if (mode === "artillery") {
-    const artillery = run("npx", [
-      "artillery",
-      "run",
-      "--target",
-      `http://127.0.0.1:${proxyPort}`,
-      "tests/artillery/smoke.yml",
-    ]);
-    const [result] = await once(artillery, "exit");
-    const appFailed = webExit !== null;
-    web.kill("SIGTERM");
-    cleanup();
-    process.exit(appFailed || typeof result !== "number" ? 1 : result);
-  } else {
-    await once(web, "exit");
-    cleanup();
+    await runArtillery(web, webExit !== null);
+    return;
   }
+  const result = await waitForExit(web);
+  cleanup();
+  if (result !== 143 && result !== 130) process.exitCode = result || 1;
+}
+
+async function runArtillery(web: ChildProcess, appFailed: boolean) {
+  const artillery = run("npx", [
+    "artillery",
+    "run",
+    "--target",
+    `http://127.0.0.1:${proxyPort}`,
+    "tests/artillery/smoke.yml",
+  ]);
+  const result = await waitForExit(artillery);
+  web.kill("SIGTERM");
+  cleanup();
+  process.exit(appFailed || result !== 0 ? 1 : 0);
 }
 
 process.once("SIGINT", () => {
