@@ -9,3 +9,5 @@ coverage
 data/
 playwright-report/
 test-results/
+reports/
+.stryker/

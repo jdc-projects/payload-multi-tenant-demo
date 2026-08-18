@@ -10,13 +10,14 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { IconCircleCheck } from "@tabler/icons-react";
 import type { Page } from "../lib/cms";
 
 export function Blocks({ blocks }: { blocks: Page["layout"] }) {
   return (
     <Stack gap={0}>
-      {blocks.map((block, index) => (
-        <Block key={`${String(block.blockType)}-${index}`} block={block} />
+      {blocks.map((block) => (
+        <Block key={String(block.id ?? block.blockType)} block={block} />
       ))}
     </Stack>
   );
@@ -59,6 +60,7 @@ function Block({ block }: { block: Record<string, unknown> }) {
               Array<{ title: string; body?: string }> | undefined
           )?.map((feature) => (
             <Card withBorder padding="xl" key={feature.title}>
+              <IconCircleCheck aria-hidden size={24} />
               <Title order={3}>{feature.title}</Title>
               <Text mt="sm">{feature.body}</Text>
             </Card>

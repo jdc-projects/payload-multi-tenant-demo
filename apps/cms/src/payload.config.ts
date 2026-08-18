@@ -2,6 +2,7 @@ import { postgresAdapter } from "@payloadcms/db-postgres";
 import { s3Storage } from "@payloadcms/storage-s3";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
+import sharp from "sharp";
 import { Media, Pages, Tenants, Users } from "./collections";
 
 export default buildConfig({
@@ -14,6 +15,7 @@ export default buildConfig({
   },
   collections: [Users, Tenants, Pages, Media],
   editor: lexicalEditor(),
+  sharp,
   secret: process.env.PAYLOAD_SECRET ?? "local-only-secret-change-me",
   db: postgresAdapter({ pool: { connectionString: process.env.DATABASE_URL } }),
   plugins: [

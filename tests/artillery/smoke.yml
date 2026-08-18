@@ -1,0 +1,15 @@
+config:
+  phases:
+    - duration: 1
+      arrivalRate: 1
+      name: smoke
+  defaults:
+    headers:
+      user-agent: payload-multi-tenant-demo-artillery
+scenarios:
+  - name: visit tenant home page
+    flow:
+      - get:
+          url: "/demo1/"
+          expect:
+            - statusCode: 200

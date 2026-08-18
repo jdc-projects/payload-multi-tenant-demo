@@ -18,13 +18,26 @@
     "lint": "turbo run lint",
     "seed": "npm run seed:cms",
     "seed:cms": "tsx apps/cms/src/seed.ts",
-    "test": "turbo run test",
+    "test": "npm run test:unit && npm run test:playwright && npm run test:e2e && npm run test:artillery && npm run test:mutation",
     "test:unit": "turbo run test:unit",
-    "typecheck": "turbo run typecheck",
-    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run test"
+    "test:playwright": "playwright test --config=tests/playwright/web.config.ts",
+    "test:e2e": "playwright test --config=tests/playwright/e2e.config.ts",
+    "test:artillery": "artillery run --target \"${ARTILLERY_BASE_URL:-http://127.0.0.1:3100}\" tests/artillery/smoke.yml",
+    "test:mutation": "stryker run",
+    "check:react-doctor": "react-doctor apps/web",
+    "check:fallow": "fallow audit",
+    "typecheck": "turbo run typecheck && tsc -p tests/tsconfig.json --noEmit",
+    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run build && npm run check:react-doctor && npm run check:fallow && npm run test"
   },
   "devDependencies": {
     "prettier": "^3",
+    "@axe-core/playwright": "^4",
+    "@playwright/test": "^1",
+    "artillery": "^2",
+    "fallow": "^3",
+    "react-doctor": "^0",
+    "@stryker-mutator/core": "^10",
+    "@stryker-mutator/vitest-runner": "^10",
     "tsx": "^4",
     "turbo": "^2"
   }
