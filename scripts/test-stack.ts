@@ -241,6 +241,11 @@ async function main() {
       env: { ...testEnv, WEB_PORT: String(webPort) },
     },
   );
+  let webExit: { code: number | null; signal: NodeJS.Signals | null } | null =
+    null;
+  web.once("exit", (code, signal) => {
+    webExit = { code, signal };
+  });
   await waitFor(`http://127.0.0.1:${proxyPort}/`);
   if (mode === "artillery") {
     const artillery = run("npx", [
@@ -251,9 +256,10 @@ async function main() {
       "tests/artillery/smoke.yml",
     ]);
     const [result] = await once(artillery, "exit");
+    const appFailed = webExit !== null;
     web.kill("SIGTERM");
     cleanup();
-    process.exit(typeof result === "number" ? result : 1);
+    process.exit(appFailed || typeof result !== "number" ? 1 : result);
   } else {
     await once(web, "exit");
     cleanup();
