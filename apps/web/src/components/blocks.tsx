@@ -196,31 +196,56 @@ function renderRichText(content: unknown): ReactNode {
   );
 }
 
+type RichTextNode = {
+  type?: string;
+  text?: string;
+  tag?: string;
+  children?: unknown[];
+};
+
+type RichTextRenderer = (
+  node: RichTextNode,
+  children: ReactNode,
+  key: number,
+) => ReactNode;
+
 function renderRichTextNode(node: unknown, key: number): ReactNode {
-  const value = node as {
-    type?: string;
-    text?: string;
-    tag?: string;
-    children?: unknown[];
-  };
-  const children = value.children?.map((child, index) =>
-    renderRichTextNode(child, index),
-  );
-  if (value.type === "text") return <span key={key}>{value.text}</span>;
-  if (value.type === "heading") {
-    const Heading = (value.tag ?? "h2") as
+  const value = node as RichTextNode;
+  const children = renderRichTextChildren(value.children);
+  const render = richTextRenderers[value.type ?? ""] ?? renderRichTextParagraph;
+  return render(value, children, key);
+}
+
+function renderRichTextChildren(children?: unknown[]): ReactNode {
+  return children?.map((child, index) => renderRichTextNode(child, index));
+}
+
+const richTextRenderers: Record<string, RichTextRenderer> = {
+  text: (node, _children, key) => <span key={key}>{node.text}</span>,
+  heading: (node, children, key) => {
+    const Heading = (node.tag ?? "h2") as
       "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
     return <Heading key={key}>{children}</Heading>;
-  }
-  if (value.type === "list") return <ul key={key}>{children}</ul>;
-  if (value.type === "listitem") return <li key={key}>{children}</li>;
-  if (value.type === "link") {
-    const attrs = node as { url?: string; fields?: { url?: string } };
+  },
+  list: (_node, children, key) => <ul key={key}>{children}</ul>,
+  listitem: (_node, children, key) => <li key={key}>{children}</li>,
+  link: (node, children, key) => {
+    const attrs = node as RichTextNode & {
+      url?: string;
+      fields?: { url?: string };
+    };
     return (
       <a key={key} href={safeHref(attrs.url ?? attrs.fields?.url ?? "#")}>
         {children}
       </a>
     );
-  }
+  },
+};
+
+function renderRichTextParagraph(
+  _node: RichTextNode,
+  children: ReactNode,
+  key: number,
+): ReactNode {
   return <p key={key}>{children}</p>;
 }
