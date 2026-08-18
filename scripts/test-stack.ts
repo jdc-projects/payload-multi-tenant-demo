@@ -52,6 +52,8 @@ const testEnv = {
   PROXY_PORT: String(proxyPort),
   NEXT_DIST_DIR: `.next-${composeProject}`,
   CMS_RENDERER_TOKEN: process.env.CMS_RENDERER_TOKEN ?? "test-renderer-token",
+  REVALIDATION_SECRET:
+    process.env.REVALIDATION_SECRET ?? "test-revalidation-secret",
   S3_BUCKET: process.env.S3_BUCKET ?? "payload-media",
   S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "payload",
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "payload-secret",

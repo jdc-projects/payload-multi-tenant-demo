@@ -6,6 +6,9 @@
   handle /admin* {
     reverse_proxy {$CMS_UPSTREAM}
   }
+  handle /api/revalidate {
+    reverse_proxy {$WEB_UPSTREAM}
+  }
   handle /api* {
     reverse_proxy {$CMS_UPSTREAM}
   }

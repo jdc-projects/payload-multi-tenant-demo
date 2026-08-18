@@ -9,11 +9,15 @@ export async function generateStaticParams() {
 }
 export default async function TenantPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenant: string; slug?: string[] }>;
+  searchParams: Promise<{ preview?: string }>;
 }) {
   const { tenant, slug = [] } = await params;
-  const page = await getPage(tenant, slug.join("/"));
+  const { preview } = await searchParams;
+  const isPreview = preview === "true";
+  const page = await getPage(tenant, slug.join("/"), isPreview);
   if (!page) notFound();
   return (
     <main

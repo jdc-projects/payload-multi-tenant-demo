@@ -23,7 +23,7 @@ export default buildConfig({
     user: "users",
     livePreview: {
       url: ({ data }) =>
-        `${webURL}/${data?.tenant?.slug ?? "demo1"}/${data?.slug ?? ""}`,
+        `${webURL}/${data?.tenant?.slug ?? "demo1"}/${data?.slug ?? ""}?preview=true`,
     },
   },
   collections: [Users, Tenants, Pages, Media],

@@ -1,6 +1,11 @@
 import type { CollectionConfig } from "payload";
 import { pageBlocks } from "./blocks.js";
 
+const webURL =
+  process.env.NEXT_PUBLIC_WEB_URL ??
+  `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
+const revalidationSecret = process.env.REVALIDATION_SECRET;
+
 type TenantUser = { tenant?: string | { id: string } };
 
 const authenticated = ({ req }: { req: { user?: unknown } }) =>
@@ -23,6 +28,41 @@ const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
   if (req.user) return tenantScope({ req });
   if (rendererAccess({ req })) return { _status: { equals: "published" } };
   return false;
+};
+
+/** Notify the renderer after either a draft save or a publish. */
+const revalidateWebPage = async ({ doc, req }: { doc: any; req: any }) => {
+  if (!revalidationSecret) return doc;
+  let tenant = doc.tenant;
+  const tenantID =
+    typeof tenant === "string" ? tenant : (tenant?.id ?? undefined);
+  if (tenantID) {
+    try {
+      const record = await req.payload.findByID({
+        collection: "tenants",
+        id: tenantID,
+        depth: 0,
+        overrideAccess: true,
+      });
+      tenant = record.slug;
+    } catch {
+      // A failed notification must not prevent an editor from saving.
+    }
+  }
+  if (typeof tenant !== "string") tenant = tenant?.slug;
+  try {
+    await fetch(`${webURL}/api/revalidate`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${revalidationSecret}`,
+      },
+      body: JSON.stringify({ tenant, slug: doc.slug ?? "" }),
+    });
+  } catch {
+    // The web process may be restarting while CMS remains available.
+  }
+  return doc;
 };
 
 export const enforceTenantWrite = ({
@@ -93,7 +133,10 @@ export const Pages: CollectionConfig = {
     update: tenantScope,
     delete: tenantScope,
   },
-  hooks: { beforeChange: [enforceTenantWrite] },
+  hooks: {
+    beforeChange: [enforceTenantWrite],
+    afterChange: [revalidateWebPage],
+  },
   fields: [
     { name: "title", type: "text", required: true },
     { name: "slug", type: "text", defaultValue: "" },
