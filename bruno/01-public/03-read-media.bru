@@ -1,0 +1,16 @@
+meta {
+  name: List public media
+  type: http
+  seq: 3
+}
+
+get {
+  url: http://localhost:{{proxyPort}}/api/media?limit=100&depth=0
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.docs: isArray
+}

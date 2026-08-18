@@ -66,16 +66,21 @@ export async function getPagePaths(): Promise<
     depth: "1",
     limit: "1000",
   });
-  const response = await fetch(`${cmsUrl}/api/pages?${params}`, {
-    headers: cmsHeaders,
-    next: { revalidate: 60, tags: ["pages"] },
-  });
-  if (!response.ok) return [];
-  const data = (await response.json()) as {
-    docs: Array<{ tenant: string | { slug: string }; slug: string }>;
-  };
-  return data.docs.map((page) => ({
-    tenant: typeof page.tenant === "string" ? page.tenant : page.tenant.slug,
-    slug: page.slug ? page.slug.split("/") : [],
-  }));
+  try {
+    const response = await fetch(`${cmsUrl}/api/pages?${params}`, {
+      headers: cmsHeaders,
+      next: { revalidate: 60, tags: ["pages"] },
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as {
+      docs: Array<{ tenant: string | { slug: string }; slug: string }>;
+    };
+    return data.docs.map((page) => ({
+      tenant: typeof page.tenant === "string" ? page.tenant : page.tenant.slug,
+      slug: page.slug ? page.slug.split("/") : [],
+    }));
+  } catch {
+    // A standalone build has no CMS to enumerate; dynamic routes render at runtime.
+    return [];
+  }
 }
