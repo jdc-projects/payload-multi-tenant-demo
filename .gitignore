@@ -13,4 +13,5 @@ playwright-report/
 test-results/
 reports/
 .stryker/
+.stryker-tmp/
 apps/cms/payload-types.ts
