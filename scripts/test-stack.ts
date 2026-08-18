@@ -1,4 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { loadRootEnv } from "./env.js";
 
@@ -29,7 +30,10 @@ let cleaned = false;
 let ownsProject = false;
 const composeProject =
   process.env.TEST_COMPOSE_PROJECT ?? `payload-demo-${process.pid}`;
+const ownerToken = randomUUID();
+process.title = `payload-test-stack:${composeProject}:${ownerToken}`;
 const manifestFile = `${root}/.test-stack-${composeProject}.json`;
+const claimLockFile = `${manifestFile}.lock`;
 const managedProjectPattern = /^payload-demo-[A-Za-z0-9_-]+$/;
 const reconcilableProjectPattern =
   /^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/;
@@ -81,11 +85,6 @@ function reconcileStaleProject(name: string) {
   const manifest = `${root}/.test-stack-${name}.json`;
   if (isManagedProjectLive(manifest, name)) return;
   try {
-    fs.unlinkSync(manifest);
-  } catch {
-    // The manifest may not exist for an older abandoned project.
-  }
-  try {
     execFileSync(
       "docker",
       [
@@ -101,27 +100,39 @@ function reconcileStaleProject(name: string) {
       { cwd: root, stdio: "inherit" },
     );
     removeNextDistDirs(name);
+    try {
+      fs.unlinkSync(manifest);
+    } catch {
+      // The manifest may not exist for an older abandoned project.
+    }
   } catch {
-    // A stale project may disappear while it is being reconciled.
+    // Keep the manifest so a later startup can retry cleanup.
   }
 }
 
 function isManagedProjectLive(manifest: string, project: string) {
   if (!fs.existsSync(manifest)) return false;
   try {
-    const { pid, project: manifestProject } = JSON.parse(
-      fs.readFileSync(manifest, "utf8"),
-    ) as {
+    const {
+      pid,
+      project: manifestProject,
+      token,
+    } = JSON.parse(fs.readFileSync(manifest, "utf8")) as {
       pid?: number;
       project?: string;
+      token?: string;
     };
-    if (!pid || manifestProject !== project) return false;
-    return execFileSync("ps", ["-p", String(pid), "-o", "command="], {
-      encoding: "utf8",
-    }).includes("scripts/test-stack.ts");
+    if (!pid || !token || manifestProject !== project) return false;
+    return isProcessOwnerLive(pid, project, token);
   } catch {
     return false;
   }
+}
+
+function isProcessOwnerLive(pid: number, project: string, token: string) {
+  return execFileSync("ps", ["-p", String(pid), "-o", "command="], {
+    encoding: "utf8",
+  }).includes(`payload-test-stack:${project}:${token}`);
 }
 
 function run(
@@ -245,7 +256,6 @@ async function main() {
   assertMode();
   claimManagedProject();
   cleanupStaleManagedProjects();
-  writeManifest();
   await startInfrastructure();
   await prepareCms();
   if (mode === "build") return finishBuild();
@@ -255,31 +265,77 @@ async function main() {
 function claimManagedProject() {
   if (!managedProjectPattern.test(composeProject))
     throw new Error("TEST_COMPOSE_PROJECT must start with payload-demo-.");
-  if (fs.existsSync(manifestFile)) {
-    if (isManagedProjectLive(manifestFile, composeProject))
-      throw new Error(
-        `Managed test project is already running: ${composeProject}`,
-      );
+  acquireClaimLock();
+  try {
+    if (fs.existsSync(manifestFile)) {
+      if (isManagedProjectLive(manifestFile, composeProject))
+        throw new Error(
+          `Managed test project is already running: ${composeProject}`,
+        );
+      reconcileStaleProject(composeProject);
+      if (fs.existsSync(manifestFile))
+        throw new Error(
+          `Managed test project cleanup failed: ${composeProject}`,
+        );
+    }
+    writeManifest();
+  } finally {
+    fs.rmSync(claimLockFile, { recursive: true, force: true });
+  }
+}
+
+function acquireClaimLock() {
+  try {
+    fs.mkdirSync(claimLockFile);
+    fs.writeFileSync(
+      `${claimLockFile}/owner`,
+      JSON.stringify({
+        pid: process.pid,
+        project: composeProject,
+        token: ownerToken,
+      }),
+    );
+    return;
+  } catch {
+    let stale = false;
     try {
-      fs.unlinkSync(manifestFile);
+      const owner = JSON.parse(
+        fs.readFileSync(`${claimLockFile}/owner`, "utf8"),
+      ) as { pid?: number; project?: string; token?: string };
+      stale =
+        !owner.pid ||
+        !owner.token ||
+        owner.project !== composeProject ||
+        !isProcessOwnerLive(owner.pid, owner.project, owner.token);
     } catch {
+      const age = Date.now() - fs.statSync(claimLockFile).mtimeMs;
+      stale = age > 10_000;
+    }
+    if (!stale)
       throw new Error(
         `Managed test project is already claimed: ${composeProject}`,
       );
-    }
+    fs.rmSync(claimLockFile, { recursive: true, force: true });
+    acquireClaimLock();
   }
 }
 
 function writeManifest() {
+  const temporaryManifest = `${manifestFile}.${ownerToken}.tmp`;
   try {
-    const descriptor = fs.openSync(manifestFile, "wx");
     fs.writeFileSync(
-      descriptor,
-      JSON.stringify({ pid: process.pid, project: composeProject }),
+      temporaryManifest,
+      JSON.stringify({
+        pid: process.pid,
+        project: composeProject,
+        token: ownerToken,
+      }),
     );
-    fs.closeSync(descriptor);
+    fs.linkSync(temporaryManifest, manifestFile);
+    fs.unlinkSync(temporaryManifest);
     ownsProject = true;
   } catch {
+    fs.rmSync(temporaryManifest, { force: true });
     throw new Error(
       `Managed test project is already claimed: ${composeProject}`,
     );

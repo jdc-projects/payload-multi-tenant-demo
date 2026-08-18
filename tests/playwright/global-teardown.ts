@@ -12,8 +12,10 @@ function ownedStack(project: string) {
     const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8")) as {
       pid?: number;
       project?: string;
+      token?: string;
     };
-    if (manifest.project !== project || !manifest.pid) return null;
+    if (manifest.project !== project || !manifest.pid || !manifest.token)
+      return null;
     let command = "";
     try {
       command = execFileSync(
@@ -24,7 +26,11 @@ function ownedStack(project: string) {
     } catch {
       // The owner process may already have exited.
     }
-    if (command && !command.includes("scripts/test-stack.ts")) return null;
+    if (
+      command &&
+      !command.includes(`payload-test-stack:${project}:${manifest.token}`)
+    )
+      return null;
     return { command, manifestFile, pid: manifest.pid };
   } catch {
     return null;
@@ -34,7 +40,7 @@ function ownedStack(project: string) {
 function stopManagedStack(project: string) {
   const stack = ownedStack(project);
   if (!stack) return false;
-  if (stack.command.includes("scripts/test-stack.ts")) {
+  if (stack.command) {
     try {
       process.kill(stack.pid, "SIGTERM");
     } catch {
