@@ -1,0 +1,17 @@
+meta {
+  name: List seeded tenants
+  type: http
+  seq: 1
+}
+
+get {
+  url: http://localhost:{{proxyPort}}/api/tenants?limit=100&depth=0
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.docs: isArray
+  res.body.totalDocs: eq 3
+}
