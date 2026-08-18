@@ -32,10 +32,11 @@ The demo has three deterministic tenants: `demo1`, `demo2`, and `demo3`. Path pr
 Scripts are hierarchical and must remain repeatable:
 
 - `npm run dev` starts Docker dependencies and host watch-mode apps through Turborepo.
-- `npm run build` runs the managed prod-like build, seed, and frontend build lifecycle.
+- `npm run build` builds both applications as standalone artifacts and does not start Docker or seed data.
+- `npm run build:managed` runs the seeded prod-like build and managed lifecycle, including Docker dependencies and cleanup.
 - `npm run validate` is the required complete local gate.
 - `npm run test:unit` runs Vitest without a build or service stack.
-- `npm run test:playwright` runs isolated web Playwright tests against built artifacts through managed Caddy.
+- `npm run test:playwright` runs isolated web Playwright tests against built artifacts through managed Caddy (including its managed lifecycle).
 - `npm run test:e2e` runs full-stack Playwright tests through managed Caddy.
 - `npm run test:artillery` runs load tests against the prod-like stack.
 - `npm run test:mutation` runs incremental Stryker.
