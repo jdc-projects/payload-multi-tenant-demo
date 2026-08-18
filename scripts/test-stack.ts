@@ -1,5 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import fs from "node:fs";
 import { loadRootEnv } from "./env.js";
 
 loadRootEnv();
@@ -41,12 +42,51 @@ const testEnv = {
   WEB_PORT: String(webPort),
   PROXY_HOST: "127.0.0.1",
   PROXY_PORT: String(proxyPort),
+  NEXT_DIST_DIR: `.next-${composeProject}`,
   PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? "test-only-secret",
   S3_BUCKET: process.env.S3_BUCKET ?? "payload-media",
   S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "payload",
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "payload-secret",
   TEST_COMPOSE_PROJECT: composeProject,
 };
+
+function cleanupStaleManagedProjects() {
+  let projects: Array<{ Name?: string }> = [];
+  try {
+    const output = execFileSync(
+      "docker",
+      ["compose", "ls", "--format", "json"],
+      { cwd: root, encoding: "utf8" },
+    );
+    projects = JSON.parse(output) as Array<{ Name?: string }>;
+  } catch {
+    return;
+  }
+
+  for (const project of projects) {
+    const name = project.Name;
+    if (!name || !/^payload-demo-(?:(?:web|e2e|artillery)-)?\d+$/.test(name))
+      continue;
+    if (name === composeProject) continue;
+    try {
+      execFileSync(
+        "docker",
+        [
+          "compose",
+          "-p",
+          name,
+          "-f",
+          "infra/docker-compose.yml",
+          "down",
+          "--remove-orphans",
+        ],
+        { cwd: root, stdio: "inherit" },
+      );
+    } catch {
+      // A stale project may disappear while it is being reconciled.
+    }
+  }
+}
 
 function run(
   command: string,
@@ -98,6 +138,7 @@ async function waitFor(url: string, timeout = 120_000) {
 function cleanup() {
   if (cleaned) return;
   cleaned = true;
+  normalizeNextEnvFiles();
   for (const child of children) {
     if (!child.pid) continue;
     killProcessTree(child.pid);
@@ -120,9 +161,23 @@ function cleanup() {
   }
 }
 
+function normalizeNextEnvFiles() {
+  for (const app of ["apps/cms", "apps/web"]) {
+    const file = `${root}/${app}/next-env.d.ts`;
+    if (!fs.existsSync(file)) continue;
+    const source = fs.readFileSync(file, "utf8");
+    const normalized = source.replace(
+      /\.\/\.next-payload-demo-[^/]+/g,
+      "./.next",
+    );
+    if (normalized !== source) fs.writeFileSync(file, normalized);
+  }
+}
+
 async function main() {
   if (!mode || !["build", "web", "e2e", "artillery"].includes(mode))
     throw new Error("Usage: test-stack.ts <build|web|e2e|artillery>");
+  cleanupStaleManagedProjects();
   const infrastructure = run(
     "docker",
     [
