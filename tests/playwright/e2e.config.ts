@@ -9,6 +9,7 @@ try {
 process.env.TEST_COMPOSE_PROJECT ??= `payload-demo-e2e-${process.pid}`;
 const proxyPort =
   process.env.TEST_PROXY_PORT ?? String(10000 + (process.pid % 10000));
+process.env.TEST_PROXY_PORT = proxyPort;
 
 export default defineConfig({
   testDir: "./e2e",
