@@ -10,9 +10,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo run build",
+    "build": "tsx scripts/test-stack.ts build",
     "dev": "turbo run dev --parallel",
     "dev:infra": "docker compose -f infra/docker-compose.yml up -d",
+    "test:stack": "tsx scripts/test-stack.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
@@ -22,7 +23,7 @@
     "test:unit": "turbo run test:unit",
     "test:playwright": "playwright test --config=tests/playwright/web.config.ts",
     "test:e2e": "playwright test --config=tests/playwright/e2e.config.ts",
-    "test:artillery": "artillery run --target \"${ARTILLERY_BASE_URL:-http://127.0.0.1:3100}\" tests/artillery/smoke.yml",
+    "test:artillery": "tsx scripts/test-stack.ts artillery",
     "test:mutation": "stryker run",
     "check:react-doctor": "react-doctor apps/web",
     "check:fallow": "fallow audit",
@@ -36,6 +37,7 @@
     "artillery": "^2",
     "fallow": "^3",
     "react-doctor": "^0",
+    "serve": "^14",
     "@stryker-mutator/core": "^10",
     "@stryker-mutator/vitest-runner": "^10",
     "tsx": "^4",

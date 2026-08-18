@@ -3,7 +3,7 @@ import { s3Storage } from "@payloadcms/storage-s3";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
 import sharp from "sharp";
-import { Media, Pages, Tenants, Users } from "./collections";
+import { Media, Pages, Tenants, Users } from "./collections.js";
 
 export default buildConfig({
   admin: {

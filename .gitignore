@@ -1,5 +1,6 @@
 node_modules
 .next
+out
 .turbo
 dist
 coverage
@@ -11,3 +12,4 @@ playwright-report/
 test-results/
 reports/
 .stryker/
+apps/cms/payload-types.ts

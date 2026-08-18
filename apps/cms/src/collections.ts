@@ -1,5 +1,5 @@
 import type { CollectionConfig } from "payload";
-import { pageBlocks } from "./blocks";
+import { pageBlocks } from "./blocks.js";
 
 export const Users: CollectionConfig = {
   slug: "users",
@@ -29,7 +29,7 @@ export const Pages: CollectionConfig = {
   admin: { useAsTitle: "title" },
   fields: [
     { name: "title", type: "text", required: true },
-    { name: "slug", type: "text", required: true },
+    { name: "slug", type: "text", defaultValue: "" },
     {
       name: "tenant",
       type: "relationship",

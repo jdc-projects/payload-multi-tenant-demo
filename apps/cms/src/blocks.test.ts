@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pageBlocks } from "./blocks";
+import { pageBlocks } from "./blocks.js";
 
 describe("page block registry", () => {
   it("exposes the code-owned component library", () => {

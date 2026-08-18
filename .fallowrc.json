@@ -1,0 +1,7 @@
+{
+  "ignoreDependencies": ["artillery", "serve"],
+  "health": {
+    "maxCrap": 100,
+    "maxUnitSize": 100
+  }
+}

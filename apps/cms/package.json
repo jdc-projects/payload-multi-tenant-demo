@@ -1,9 +1,11 @@
 {
   "name": "@demo/cms",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "payload generate:types && tsc",
     "dev": "payload dev",
+    "test:server": "tsx src/test-server.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

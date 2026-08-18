@@ -1,5 +1,5 @@
-:3000 {
-  reverse_proxy /admin* localhost:3001
-  reverse_proxy /api* localhost:3001
-  reverse_proxy /* localhost:3002
+:8888 {
+  reverse_proxy /admin* {$CMS_UPSTREAM}
+  reverse_proxy /api* {$CMS_UPSTREAM}
+  reverse_proxy /* {$WEB_UPSTREAM}
 }

@@ -10,4 +10,4 @@ Every vertical slice should cover component outcomes, tenant isolation, seed ide
 
 `npm run validate` runs formatting, linting, TypeScript, the production build, React Doctor, Fallow, and the complete test command.
 
-Playwright requires browser binaries. Web and E2E suites require their configured prod-like services; Artillery targets the built web server by default and accepts `ARTILLERY_BASE_URL` for another environment.
+Playwright requires browser binaries. The web, E2E, and Artillery commands start their Docker dependencies, CMS test server, static web server, and Caddy proxy automatically, then clean them up. External environment runs can be added later as a separate explicitly configured target.

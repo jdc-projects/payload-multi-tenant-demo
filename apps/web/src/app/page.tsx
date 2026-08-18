@@ -4,7 +4,9 @@ export default function Home() {
     <Container py={100}>
       <Stack>
         <Title>Payload multi-tenant demo</Title>
-        <Anchor href="/demo1/">Open demo tenant</Anchor>
+        <Anchor c="dark" href="/demo1/">
+          Open demo tenant
+        </Anchor>
       </Stack>
     </Container>
   );
