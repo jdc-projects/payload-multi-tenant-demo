@@ -5,19 +5,33 @@ import { buildConfig } from "payload";
 import sharp from "sharp";
 import { Media, Pages, Tenants, Users } from "./collections.js";
 
+const databaseURL =
+  process.env.DATABASE_URL ??
+  `${process.env.POSTGRES_PROTOCOL ?? "postgres"}://${process.env.POSTGRES_USER ?? "payload"}:${process.env.POSTGRES_PASSWORD ?? "payload"}@${process.env.POSTGRES_HOST ?? "localhost"}:${process.env.POSTGRES_PORT ?? "5432"}/${process.env.POSTGRES_DB ?? "payload"}`;
+const s3Endpoint =
+  process.env.S3_ENDPOINT ??
+  `${process.env.S3_PROTOCOL ?? "http"}://${process.env.S3_HOST ?? "localhost"}:${process.env.S3_PORT ?? "9000"}`;
+const webURL =
+  process.env.NEXT_PUBLIC_WEB_URL ??
+  `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
+
 export default buildConfig({
   admin: {
     user: "users",
     livePreview: {
       url: ({ data }) =>
-        `${process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3000"}/${data?.tenant?.slug ?? "demo1"}/${data?.slug ?? ""}`,
+        `${webURL}/${data?.tenant?.slug ?? "demo1"}/${data?.slug ?? ""}`,
     },
   },
   collections: [Users, Tenants, Pages, Media],
   editor: lexicalEditor(),
   sharp,
   secret: process.env.PAYLOAD_SECRET ?? "local-only-secret-change-me",
-  db: postgresAdapter({ pool: { connectionString: process.env.DATABASE_URL } }),
+  db: postgresAdapter({
+    pool: {
+      connectionString: databaseURL,
+    },
+  }),
   plugins: [
     s3Storage({
       collections: { media: true },
@@ -27,7 +41,7 @@ export default buildConfig({
           accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "payload",
           secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "payload-secret",
         },
-        endpoint: process.env.S3_ENDPOINT ?? "http://localhost:9000",
+        endpoint: s3Endpoint,
         region: "us-east-1",
         forcePathStyle: true,
       },
@@ -44,6 +58,7 @@ export default buildConfig({
       await payload.create({
         collection: "users",
         data: { email, password, name: "Demo administrator" },
+        overrideAccess: true,
       });
   },
 });

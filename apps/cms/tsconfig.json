@@ -6,7 +6,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",
-    "paths": { "@/*": ["src/*"] }
+    "paths": { "@/*": ["src/*"], "@payload-config": ["src/payload.config.ts"] }
   },
   "include": ["src/**/*.ts"]
 }

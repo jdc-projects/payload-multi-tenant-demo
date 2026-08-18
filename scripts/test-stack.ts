@@ -1,24 +1,51 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { loadRootEnv } from "./env.js";
+
+loadRootEnv();
 
 const mode = process.argv[2];
-const port = mode === "web" ? 3100 : 3000;
-const proxyPort = 8888;
+const webPort = Number(
+  process.env.TEST_WEB_PORT ?? 25000 + (process.pid % 10000),
+);
+const cmsPort = Number(
+  process.env.TEST_CMS_PORT ?? 24000 + (process.pid % 10000),
+);
+const proxyPort = Number(
+  process.env.TEST_PROXY_PORT ?? 23000 + (process.pid % 10000),
+);
+const postgresPort = Number(
+  process.env.TEST_POSTGRES_PORT ?? 20000 + (process.pid % 10000),
+);
+const s3Port = Number(
+  process.env.TEST_S3_PORT ?? 21000 + (process.pid % 10000),
+);
+const s3ConsolePort = Number(
+  process.env.TEST_S3_CONSOLE_PORT ?? 22000 + (process.pid % 10000),
+);
 const root = process.cwd();
 const children: ChildProcess[] = [];
 let cleaned = false;
+const composeProject =
+  process.env.TEST_COMPOSE_PROJECT ?? `payload-demo-${process.pid}`;
 const testEnv = {
   ...process.env,
-  DATABASE_URL:
-    process.env.DATABASE_URL ??
-    "postgres://payload:payload@127.0.0.1:5432/payload",
-  NEXT_PUBLIC_CMS_URL:
-    process.env.NEXT_PUBLIC_CMS_URL ?? "http://127.0.0.1:3001",
+  POSTGRES_HOST: "127.0.0.1",
+  POSTGRES_PORT: String(postgresPort),
+  S3_HOST: "127.0.0.1",
+  S3_PORT: String(s3Port),
+  S3_CONSOLE_PORT: String(s3ConsolePort),
+  CMS_HOST: "127.0.0.1",
+  CMS_PORT: String(cmsPort),
+  WEB_HOST: "127.0.0.1",
+  WEB_PORT: String(webPort),
+  PROXY_HOST: "127.0.0.1",
+  PROXY_PORT: String(proxyPort),
   PAYLOAD_SECRET: process.env.PAYLOAD_SECRET ?? "test-only-secret",
-  S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://127.0.0.1:9000",
   S3_BUCKET: process.env.S3_BUCKET ?? "payload-media",
   S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "payload",
   S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "payload-secret",
+  TEST_COMPOSE_PROJECT: composeProject,
 };
 
 function run(
@@ -33,6 +60,26 @@ function run(
   });
   children.push(child);
   return child;
+}
+
+function killProcessTree(pid: number) {
+  let children: string[] = [];
+  try {
+    children = execFileSync("pgrep", ["-P", String(pid)], {
+      encoding: "utf8",
+    })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+  } catch {
+    // The process may already have exited.
+  }
+  for (const child of children) killProcessTree(Number(child));
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // The process may already have exited.
+  }
 }
 
 async function waitFor(url: string, timeout = 120_000) {
@@ -51,12 +98,22 @@ async function waitFor(url: string, timeout = 120_000) {
 function cleanup() {
   if (cleaned) return;
   cleaned = true;
-  for (const child of children) child.kill("SIGTERM");
+  for (const child of children) {
+    if (!child.pid) continue;
+    killProcessTree(child.pid);
+  }
   try {
     execFileSync(
       "docker",
-      ["compose", "-f", "infra/docker-compose.yml", "down"],
-      { cwd: root, stdio: "inherit" },
+      [
+        "compose",
+        "-p",
+        composeProject,
+        "-f",
+        "infra/docker-compose.yml",
+        "down",
+      ],
+      { cwd: root, env: testEnv, stdio: "inherit" },
     );
   } catch {
     // Preserve the original test result if Docker has already stopped.
@@ -68,23 +125,29 @@ async function main() {
     throw new Error("Usage: test-stack.ts <build|web|e2e|artillery>");
   const infrastructure = run(
     "docker",
-    ["compose", "-f", "infra/docker-compose.yml", "up", "-d", "--wait"],
-    { env: { ...testEnv, WEB_UPSTREAM: `host.docker.internal:${port}` } },
+    [
+      "compose",
+      "-p",
+      composeProject,
+      "-f",
+      "infra/docker-compose.yml",
+      "up",
+      "-d",
+      "--wait",
+    ],
+    {
+      env: {
+        ...testEnv,
+        WEB_UPSTREAM: `host.docker.internal:${webPort}`,
+        CMS_UPSTREAM: `host.docker.internal:${cmsPort}`,
+      },
+    },
   );
   const [infrastructureCode] = (await once(infrastructure, "exit")) as [
     number | null,
   ];
   if (infrastructureCode !== 0)
     throw new Error("Test infrastructure failed to start");
-  const cms = run("npx", ["tsx", "apps/cms/src/test-server.ts"], {
-    env: { ...testEnv, PORT: "3001" },
-  });
-  await waitFor("http://127.0.0.1:3001/health");
-  execFileSync("npm", ["run", "seed:cms"], {
-    cwd: root,
-    env: testEnv,
-    stdio: "inherit",
-  });
   if (mode === "build") {
     execFileSync("npm", ["run", "build", "--workspace", "@demo/cms"], {
       cwd: root,
@@ -92,6 +155,15 @@ async function main() {
       stdio: "inherit",
     });
   }
+  const cms = run("npm", ["run", "dev", "--workspace", "@demo/cms"], {
+    env: { ...testEnv, CMS_PORT: String(cmsPort) },
+  });
+  await waitFor(`http://127.0.0.1:${cmsPort}/admin`);
+  execFileSync("npm", ["run", "seed:cms"], {
+    cwd: root,
+    env: testEnv,
+    stdio: "inherit",
+  });
   execFileSync("npm", ["run", "build", "--workspace", "@demo/web"], {
     cwd: root,
     env: testEnv,
@@ -101,15 +173,9 @@ async function main() {
     cleanup();
     process.exit(0);
   }
-  cms.kill("SIGTERM");
-
-  const web = run("npx", [
-    "serve",
-    "apps/web/out",
-    "-l",
-    String(port),
-    "--no-clipboard",
-  ]);
+  const web = run("npm", ["run", "start", "--workspace", "@demo/web"], {
+    env: { ...testEnv, WEB_PORT: String(webPort) },
+  });
   await waitFor(`http://127.0.0.1:${proxyPort}/`);
   if (mode === "artillery") {
     const artillery = run("npx", [
@@ -125,6 +191,7 @@ async function main() {
     process.exit(typeof result === "number" ? result : 1);
   } else {
     await once(web, "exit");
+    cleanup();
   }
 }
 

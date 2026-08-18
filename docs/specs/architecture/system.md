@@ -15,7 +15,7 @@ Payload is the source of truth for tenant configuration, page content, media, an
 | Monorepo | npm workspaces and Turborepo               | Present                            |
 | CMS      | Payload with PostgreSQL                    | Present                            |
 | Media    | S3-compatible object storage               | RustFS and Payload adapter present |
-| Web      | Next.js static export and Mantine          | Present                            |
+| Web      | Next.js hybrid rendering/ISR and Mantine   | Initial implementation in progress |
 | Routing  | Caddy path routing, future domain resolver | Caddy config present               |
 | APIs     | Versioned service prefixes                 | Payload `/api` prefix              |
 
@@ -26,7 +26,7 @@ flowchart LR
   Caddy --> CMS[Payload CMS]
   CMS --> Postgres[(PostgreSQL)]
   CMS --> Media[(RustFS S3)]
-  Web -. build-time fetch .-> CMS
+  Web -. cached request/revalidation .-> CMS
 ```
 
 Tenant resolution is currently `/{tenant}/{slug}`. The resolver boundary is `getPage` in `apps/web/src/lib/cms.ts`; domain and subdomain mapping can be added there without changing component rendering.

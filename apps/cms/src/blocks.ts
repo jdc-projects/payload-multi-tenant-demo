@@ -7,7 +7,7 @@ const spacing = {
   options: ["none", "sm", "md", "lg"],
 };
 
-export const Hero: Block = {
+const Hero: Block = {
   slug: "hero",
   fields: [
     { name: "eyebrow", type: "text" },
@@ -25,11 +25,11 @@ export const Hero: Block = {
     spacing,
   ],
 };
-export const RichText: Block = {
+const RichText: Block = {
   slug: "richText",
   fields: [{ name: "content", type: "richText", required: true }, spacing],
 };
-export const CallToAction: Block = {
+const CallToAction: Block = {
   slug: "callToAction",
   fields: [
     { name: "heading", type: "text", required: true },
@@ -39,7 +39,7 @@ export const CallToAction: Block = {
     spacing,
   ],
 };
-export const ImageBlock: Block = {
+const ImageBlock: Block = {
   slug: "image",
   fields: [
     { name: "image", type: "upload", relationTo: "media", required: true },
@@ -48,7 +48,7 @@ export const ImageBlock: Block = {
     spacing,
   ],
 };
-export const Video: Block = {
+const Video: Block = {
   slug: "video",
   fields: [
     { name: "video", type: "upload", relationTo: "media", required: true },
@@ -57,7 +57,7 @@ export const Video: Block = {
     spacing,
   ],
 };
-export const FeatureGrid: Block = {
+const FeatureGrid: Block = {
   slug: "featureGrid",
   fields: [
     { name: "heading", type: "text" },

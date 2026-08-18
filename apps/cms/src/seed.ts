@@ -25,16 +25,22 @@ async function seed() {
       collection: "tenants",
       where: { slug: { equals: tenant.slug } },
       limit: 1,
+      overrideAccess: true,
     });
     const record =
       existing.docs[0] ??
-      (await payload.create({ collection: "tenants", data: tenant }));
+      (await payload.create({
+        collection: "tenants",
+        data: tenant,
+        overrideAccess: true,
+      }));
     const page = await payload.find({
       collection: "pages",
       where: {
         and: [{ tenant: { equals: record.id } }, { slug: { equals: "" } }],
       },
       limit: 1,
+      overrideAccess: true,
     });
     if (!page.docs[0])
       await payload.create({
@@ -42,6 +48,7 @@ async function seed() {
         data: {
           title: tenant.name,
           slug: "",
+          _status: "published",
           tenant: record.id,
           layout: [
             {
@@ -68,6 +75,7 @@ async function seed() {
             },
           ],
         },
+        overrideAccess: true,
       });
   }
   console.log(`Seeded ${tenants.length} tenants`);

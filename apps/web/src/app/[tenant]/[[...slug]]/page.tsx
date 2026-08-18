@@ -1,13 +1,11 @@
 import { notFound } from "next/navigation";
 import { Blocks } from "../../../components/blocks";
-import { getPage, getTenants } from "../../../lib/cms";
+import { getPage, getPagePaths } from "../../../lib/cms";
 
-export const dynamicParams = false;
+export const dynamicParams = true;
+export const revalidate = 60;
 export async function generateStaticParams() {
-  return (await getTenants()).map((tenant) => ({
-    tenant,
-    slug: [] as string[],
-  }));
+  return getPagePaths();
 }
 export default async function TenantPage({
   params,

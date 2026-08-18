@@ -1,15 +1,65 @@
 import type { CollectionConfig } from "payload";
 import { pageBlocks } from "./blocks.js";
 
+type TenantUser = { tenant?: string | { id: string } };
+
+const authenticated = ({ req }: { req: { user?: unknown } }) =>
+  Boolean(req.user);
+const tenantScope = ({ req }: { req: { user?: unknown } }) => {
+  if (!req.user) return false;
+  const tenant = (req.user as TenantUser).tenant;
+  if (!tenant) return true;
+  return {
+    tenant: { equals: typeof tenant === "string" ? tenant : tenant.id },
+  };
+};
+
+const publishedOrAuthenticated = ({ req }: { req: { user?: unknown } }) =>
+  req.user ? tenantScope({ req }) : { _status: { equals: "published" } };
+
+const enforceTenantWrite = ({
+  req,
+  data,
+}: {
+  req: { user?: unknown };
+  data: { tenant?: string | { id: string } };
+}) => {
+  const userTenant = req.user ? (req.user as TenantUser).tenant : undefined;
+  if (!userTenant) return data;
+  if (!data.tenant) throw new Error("A tenant is required for this content.");
+  const userTenantID =
+    typeof userTenant === "string" ? userTenant : userTenant.id;
+  const dataTenantID =
+    typeof data.tenant === "string" ? data.tenant : data.tenant.id;
+  if (userTenantID !== dataTenantID)
+    throw new Error("You cannot modify content for another tenant.");
+  return data;
+};
+
 export const Users: CollectionConfig = {
   slug: "users",
   auth: true,
   admin: { useAsTitle: "email" },
-  fields: [{ name: "name", type: "text" }],
+  access: {
+    read: authenticated,
+    create: authenticated,
+    update: authenticated,
+    delete: authenticated,
+  },
+  fields: [
+    { name: "name", type: "text" },
+    { name: "tenant", type: "relationship", relationTo: "tenants" },
+  ],
 };
 export const Tenants: CollectionConfig = {
   slug: "tenants",
   admin: { useAsTitle: "name" },
+  access: {
+    read: () => true,
+    create: authenticated,
+    update: authenticated,
+    delete: authenticated,
+  },
   fields: [
     { name: "name", type: "text", required: true },
     { name: "slug", type: "text", required: true, unique: true },
@@ -27,6 +77,13 @@ export const Pages: CollectionConfig = {
   slug: "pages",
   versions: { drafts: true },
   admin: { useAsTitle: "title" },
+  access: {
+    read: publishedOrAuthenticated,
+    create: authenticated,
+    update: tenantScope,
+    delete: tenantScope,
+  },
+  hooks: { beforeChange: [enforceTenantWrite] },
   fields: [
     { name: "title", type: "text", required: true },
     { name: "slug", type: "text", defaultValue: "" },
@@ -43,5 +100,11 @@ export const Pages: CollectionConfig = {
 export const Media: CollectionConfig = {
   slug: "media",
   upload: { mimeTypes: ["image/*", "video/*"] },
+  access: {
+    read: () => true,
+    create: authenticated,
+    update: authenticated,
+    delete: authenticated,
+  },
   fields: [{ name: "alt", type: "text" }],
 };
