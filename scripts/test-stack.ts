@@ -29,6 +29,7 @@ const children: ChildProcess[] = [];
 let cleaned = false;
 const composeProject =
   process.env.TEST_COMPOSE_PROJECT ?? `payload-demo-${process.pid}`;
+const manifestFile = `${root}/.test-stack-${composeProject}.json`;
 const testEnv = {
   ...process.env,
   POSTGRES_HOST: "127.0.0.1",
@@ -159,6 +160,11 @@ function cleanup() {
   } catch {
     // Preserve the original test result if Docker has already stopped.
   }
+  try {
+    fs.unlinkSync(manifestFile);
+  } catch {
+    // The manifest may already have been removed by a fallback teardown.
+  }
 }
 
 function normalizeNextEnvFiles() {
@@ -178,6 +184,10 @@ async function main() {
   if (!mode || !["build", "web", "e2e", "artillery"].includes(mode))
     throw new Error("Usage: test-stack.ts <build|web|e2e|artillery>");
   cleanupStaleManagedProjects();
+  fs.writeFileSync(
+    manifestFile,
+    JSON.stringify({ pid: process.pid, project: composeProject }),
+  );
   const infrastructure = run(
     "docker",
     [
