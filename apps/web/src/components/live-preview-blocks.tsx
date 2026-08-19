@@ -9,11 +9,9 @@ import { mergeMedia } from "../lib/live-preview";
 export function LivePreviewBlocks({
   blocks,
   pageId,
-  preview = false,
 }: {
   blocks: Page["layout"];
   pageId?: Page["id"];
-  preview?: boolean;
 }) {
   const router = useRouter();
   const [currentBlocks, setCurrentBlocks] = useState(blocks);
@@ -27,9 +25,11 @@ export function LivePreviewBlocks({
         return undefined;
       }
     })();
+    const previewHost =
+      window.parent !== window ? window.parent : window.opener;
     const handleMessage = (event: MessageEvent) => {
       if (
-        event.source !== window.parent ||
+        event.source !== previewHost ||
         (parentOrigin && event.origin !== parentOrigin)
       )
         return;
@@ -37,7 +37,7 @@ export function LivePreviewBlocks({
       const data = event.data.data;
       if (
         event.data.type === "payload-live-preview" &&
-        window.parent !== window &&
+        previewHost &&
         (pageId === undefined ||
           !data ||
           typeof data !== "object" ||
@@ -58,19 +58,13 @@ export function LivePreviewBlocks({
     };
 
     window.addEventListener("message", handleMessage);
-    if (window.parent !== window)
-      window.parent.postMessage(
+    if (previewHost)
+      previewHost.postMessage(
         { type: "payload-live-preview", ready: true },
         parentOrigin ?? "*",
       );
     return () => window.removeEventListener("message", handleMessage);
   }, [pageId, router]);
-
-  useEffect(() => {
-    if (!preview) return;
-    const interval = window.setInterval(() => router.refresh(), 1_000);
-    return () => window.clearInterval(interval);
-  }, [preview, router]);
 
   return <Blocks blocks={currentBlocks} />;
 }

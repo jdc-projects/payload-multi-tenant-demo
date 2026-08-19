@@ -73,7 +73,6 @@ export default async function TenantPage({
         blocks={page.layout}
         key={page.updatedAt}
         pageId={page.id}
-        preview={isPreview}
       />
     </main>
   );
