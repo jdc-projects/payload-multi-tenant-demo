@@ -2,8 +2,11 @@ import { loadRootEnv } from "../../../scripts/env.js";
 import { getPayload } from "payload";
 import {
   fixturePath,
+  collectMediaRefs,
   mediaRefs,
   normalize,
+  readAllPages,
+  recordsChanged,
   readFixture,
   resolveMediaRefs,
   writeFixture,
@@ -32,28 +35,31 @@ export const tenants = [
 ];
 async function exportFixture(output: string) {
   const payload = await getPayload({ config });
-  const tenantResult = await payload.find({
-    collection: "tenants",
-    limit: 1000,
-    depth: 0,
-    overrideAccess: true,
-  });
-  const tenants = tenantResult.docs.map(
+  const tenantDocs = await readAllPages((page) =>
+    payload.find({
+      collection: "tenants",
+      limit: 1000,
+      page,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  );
+  const tenants = tenantDocs.map(
     (tenant) => normalize(tenant) as SeedFixture["tenants"][number],
   );
   const tenantById = new Map(
-    tenantResult.docs.map((tenant) => [
-      String(tenant.id),
-      tenant.slug as string,
-    ]),
+    tenantDocs.map((tenant) => [String(tenant.id), tenant.slug as string]),
   );
-  const pageResult = await payload.find({
-    collection: "pages",
-    limit: 1000,
-    depth: 2,
-    overrideAccess: true,
-  });
-  const pages = pageResult.docs.map((page) => {
+  const pageDocs = await readAllPages((page) =>
+    payload.find({
+      collection: "pages",
+      limit: 1000,
+      page,
+      depth: 2,
+      overrideAccess: true,
+    }),
+  );
+  const pages = pageDocs.map((page) => {
     const value = mediaRefs(normalize(page)) as Record<string, unknown>;
     const tenant = page.tenant as { id?: string; slug?: string } | string;
     value.tenant =
@@ -62,13 +68,16 @@ async function exportFixture(output: string) {
         : tenant.slug;
     return value as SeedFixture["pages"][number];
   });
-  const mediaResult = await payload.find({
-    collection: "media",
-    limit: 1000,
-    depth: 0,
-    overrideAccess: true,
-  });
-  const media = mediaResult.docs.map((item) =>
+  const mediaDocs = await readAllPages((page) =>
+    payload.find({
+      collection: "media",
+      limit: 1000,
+      page,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  );
+  const media = mediaDocs.map((item) =>
     Object.assign({}, normalize(item), { ref: String(item.filename) }),
   ) as SeedFixture["media"];
   await writeFixture(output, { version: 1, tenants, pages, media });
@@ -113,8 +122,7 @@ async function importTenant(
     });
     return false;
   }
-  const changed =
-    JSON.stringify(normalize(record)) !== JSON.stringify(normalize(tenant));
+  const changed = recordsChanged(record, tenant);
   if (changed) {
     console.warn(
       `Skipped changed tenant ${tenant.slug}; use --force to overwrite`,
@@ -127,7 +135,7 @@ async function importMedia(
   payload: PayloadClient,
   media: SeedFixture["media"][number],
   mediaIDs: Map<string, string>,
-) {
+): Promise<boolean> {
   const existing = await payload.find({
     collection: "media",
     where: { filename: { equals: media.ref } },
@@ -138,11 +146,12 @@ async function importMedia(
   const record = existing.docs[0];
   if (record) {
     mediaIDs.set(media.ref, String(record.id));
-    return;
+    return true;
   }
   console.warn(
     `Media ref ${media.ref} is not present; upload it before importing pages`,
   );
+  return false;
 }
 
 async function importPage(
@@ -185,8 +194,7 @@ async function importPage(
     });
     return false;
   }
-  const changed =
-    JSON.stringify(normalize(record)) !== JSON.stringify(normalize(data));
+  const changed = recordsChanged(record, data);
   if (changed) {
     console.warn(
       `Skipped changed page ${tenantSlug}/${slug}; use --force to overwrite`,
@@ -200,12 +208,25 @@ async function importFixture(input: string, force: boolean) {
   const payload = await getPayload({ config });
   const tenantIDs = new Map<string, string>();
   const mediaIDs = new Map<string, string>();
+  const missingMedia = new Set<string>();
+  for (const media of fixture.media) {
+    if (!(await importMedia(payload, media, mediaIDs)))
+      missingMedia.add(media.ref);
+  }
+  for (const page of fixture.pages) {
+    for (const ref of collectMediaRefs(page.layout))
+      if (!mediaIDs.has(ref)) missingMedia.add(ref);
+  }
+  if (missingMedia.size) {
+    await payload.db.destroy?.();
+    throw new Error(
+      `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
+    );
+  }
   let skipped = 0;
   for (const tenant of fixture.tenants) {
     skipped += Number(await importTenant(payload, tenant, force, tenantIDs));
   }
-  for (const media of fixture.media)
-    await importMedia(payload, media, mediaIDs);
   for (const page of fixture.pages) {
     skipped += Number(
       await importPage(payload, page, force, tenantIDs, mediaIDs),
