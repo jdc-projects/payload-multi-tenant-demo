@@ -30,6 +30,14 @@ let cleaning = false;
 let claimedPorts: string[] = [];
 let stopWatch: (status: number) => void = () => undefined;
 const readinessAbort = new AbortController();
+const defaultPorts = {
+  proxy: 23_000,
+  postgres: 20_000,
+  s3: 21_000,
+  s3Console: 22_000,
+  cms: 24_000,
+  web: 25_000,
+};
 
 function portIsAvailable(port: number) {
   return new Promise<boolean>((resolve) => {
@@ -39,71 +47,81 @@ function portIsAvailable(port: number) {
   });
 }
 
+function allPortsConfigured() {
+  return Object.values(explicitPorts).every(Boolean);
+}
+
+function candidatePorts(offset: number) {
+  return Object.fromEntries(
+    Object.entries(defaultPorts).map(([key, base]) => [
+      key,
+      String(base + offset),
+    ]),
+  ) as Ports;
+}
+
+function automaticPorts(candidate: Ports) {
+  return Object.entries(explicitPorts)
+    .filter(([, value]) => !value)
+    .map(([key]) => candidate[key as keyof Ports]);
+}
+
+function claimOwnerIsAlive(file: string) {
+  try {
+    const owner = JSON.parse(fs.readFileSync(file, "utf8")) as { pid?: number };
+    if (!owner.pid) return false;
+    process.kill(owner.pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function claimPort(port: string) {
+  const file = `${claimDirectory}/${port}`;
+  let fd: number;
+  try {
+    fd = fs.openSync(file, "wx");
+  } catch (error) {
+    if (claimOwnerIsAlive(file)) throw error;
+    fs.rmSync(file, { force: true });
+    fd = fs.openSync(file, "wx");
+  }
+  fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
+  fs.closeSync(fd);
+  return file;
+}
+
+async function portsAvailable(portsToCheck: string[]) {
+  const available = await Promise.all(
+    portsToCheck.map((port) => portIsAvailable(Number(port))),
+  );
+  return available.every(Boolean);
+}
+
+function releaseClaims(claims: string[]) {
+  for (const file of claims) fs.rmSync(file, { force: true });
+}
+
 async function allocatePorts() {
-  const defaults = {
-    proxy: 23_000,
-    postgres: 20_000,
-    s3: 21_000,
-    s3Console: 22_000,
-    cms: 24_000,
-    web: 25_000,
-  };
-  const values = Object.values(explicitPorts);
-  if (values.every(Boolean)) return explicitPorts as Ports;
+  if (allPortsConfigured()) return explicitPorts as Ports;
   fs.mkdirSync(claimDirectory, { recursive: true });
   const start = process.pid % 10_000;
   for (let attempt = 0; attempt < 10_000; attempt++) {
     const offset = (start + attempt) % 10_000;
-    const candidate = Object.fromEntries(
-      Object.entries(defaults).map(([key, base]) => [
-        key,
-        String(base + offset),
-      ]),
-    ) as Ports;
-    const automatic = Object.entries(explicitPorts)
-      .filter(([, value]) => !value)
-      .map(([key]) => candidate[key as keyof Ports]);
+    const candidate = candidatePorts(offset);
+    const automatic = automaticPorts(candidate);
     const claims: string[] = [];
     try {
-      for (const port of automatic) {
-        const file = `${claimDirectory}/${port}`;
-        let fd: number | undefined;
-        try {
-          fd = fs.openSync(file, "wx");
-        } catch (error) {
-          try {
-            const owner = JSON.parse(fs.readFileSync(file, "utf8")) as {
-              pid?: number;
-            };
-            if (owner.pid) process.kill(owner.pid, 0);
-          } catch {
-            fs.rmSync(file, { force: true });
-            fd = fs.openSync(file, "wx");
-          }
-          if (fd === undefined) throw error;
-        }
-        if (fd === undefined) throw new Error("Port claim failed");
-        fs.writeFileSync(
-          fd,
-          JSON.stringify({ pid: process.pid, at: Date.now() }),
-        );
-        fs.closeSync(fd);
-        claims.push(file);
-      }
-      if (
-        (
-          await Promise.all(
-            automatic.map((port) => portIsAvailable(Number(port))),
-          )
-        ).every(Boolean)
-      ) {
+      for (const port of automatic) claims.push(claimPort(port));
+      if (await portsAvailable(automatic)) {
         claimedPorts = claims;
         return { ...candidate, ...explicitPorts } as Ports;
       }
     } catch {
       // Another watch process claimed this candidate.
     }
-    for (const file of claims) fs.rmSync(file, { force: true });
+    releaseClaims(claims);
   }
   throw new Error("Unable to allocate isolated watch ports");
 }
@@ -156,64 +174,89 @@ async function waitFor(url: string, timeout = 120_000) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
-function reconcileStaleProjects() {
-  let projects: Array<{ Name?: string }> = [];
+type WatchManifest = {
+  pid?: number;
+  token?: string;
+  startedAt?: number;
+  project?: string;
+};
+
+function watchProjects() {
   try {
-    projects = JSON.parse(
+    return JSON.parse(
       execFileSync("docker", ["compose", "ls", "--all", "--format", "json"], {
         cwd: root,
         encoding: "utf8",
       }),
     ) as Array<{ Name?: string }>;
   } catch {
-    return;
+    return [];
   }
-  for (const project of projects) {
-    const name = project.Name;
-    if (
-      !name ||
-      !/^payload-demo-watch-\d+$/.test(name) ||
-      name === composeProject
-    )
-      continue;
-    const file = `${root}/.watch-${name}.json`;
+}
+
+function isWatchProject(name: string | undefined) {
+  return Boolean(
+    name && /^payload-demo-watch-\d+$/.test(name) && name !== composeProject,
+  );
+}
+
+function readManifest(file: string) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as WatchManifest;
+  } catch {
+    return undefined;
+  }
+}
+
+function isOwnedWatch(name: string, manifest: WatchManifest) {
+  if (!manifest.project || !manifest.pid || !manifest.token) return false;
+  try {
+    return execFileSync("ps", ["-p", String(manifest.pid), "-o", "command="], {
+      encoding: "utf8",
+    }).includes(`payload-demo-watch:${name}:${manifest.token}`);
+  } catch {
+    return false;
+  }
+}
+
+function removeStaleProject(
+  name: string,
+  file: string,
+  manifest: WatchManifest,
+) {
+  if (isOwnedWatch(name, manifest) || !manifest.startedAt) return;
+  if (Date.now() - manifest.startedAt < staleAge) return;
+  execFileSync(
+    "docker",
+    [
+      "compose",
+      "-p",
+      name,
+      "-f",
+      "infra/docker-compose.yml",
+      "down",
+      "--remove-orphans",
+    ],
+    { cwd: root, stdio: "inherit" },
+  );
+  fs.rmSync(file, { force: true });
+}
+
+function reconcileStaleProject(name: string) {
+  const file = `${root}/.watch-${name}.json`;
+  const manifest = readManifest(file);
+  if (manifest) {
     try {
-      const manifest = JSON.parse(fs.readFileSync(file, "utf8")) as {
-        pid?: number;
-        token?: string;
-        startedAt?: number;
-        project?: string;
-      };
-      const owned =
-        manifest.project === name &&
-        manifest.pid &&
-        manifest.token &&
-        execFileSync("ps", ["-p", String(manifest.pid), "-o", "command="], {
-          encoding: "utf8",
-        }).includes(`payload-demo-watch:${name}:${manifest.token}`);
-      if (
-        owned ||
-        !manifest.startedAt ||
-        Date.now() - manifest.startedAt < staleAge
-      )
-        continue;
-      execFileSync(
-        "docker",
-        [
-          "compose",
-          "-p",
-          name,
-          "-f",
-          "infra/docker-compose.yml",
-          "down",
-          "--remove-orphans",
-        ],
-        { cwd: root, stdio: "inherit" },
-      );
-      fs.rmSync(file, { force: true });
+      removeStaleProject(name, file, manifest);
     } catch {
       // Missing/invalid ownership metadata is never safe to remove.
     }
+  }
+}
+
+function reconcileStaleProjects() {
+  for (const project of watchProjects()) {
+    if (isWatchProject(project.Name)) reconcileStaleProject(project.Name!);
   }
 }
 
