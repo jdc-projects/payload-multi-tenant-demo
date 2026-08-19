@@ -54,17 +54,43 @@ const tenantPreviewURL = ({ tenant, slug }: TenantPreview) => {
     return `${previewProtocol()}://${tenant}.${process.env.TENANT_BASE_DOMAIN}/${slug}`;
   return `${webURL}/${tenant}/${slug}`;
 };
+const resolvePreviewTenant = async (tenant: unknown, payload: any) => {
+  if (!tenant) return undefined;
+  if (typeof tenant === "object" && tenant !== null) {
+    const slug = (tenant as { slug?: unknown }).slug;
+    if (typeof slug === "string") return slug;
+  }
+  const id =
+    typeof tenant === "string" || typeof tenant === "number"
+      ? tenant
+      : (tenant as { id?: unknown }).id;
+  if (typeof id !== "string" && typeof id !== "number") return undefined;
+  try {
+    const record = await payload.findByID({
+      collection: "tenants",
+      id,
+      depth: 0,
+      overrideAccess: true,
+    });
+    return typeof record.slug === "string" ? record.slug : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export default buildConfig({
   admin: {
     user: "users",
     livePreview: {
       collections: ["pages"],
-      url: ({ data }) =>
-        `${tenantPreviewURL({
-          tenant: data?.tenant?.slug ?? "demo1",
+      url: async ({ data, req }) => {
+        const tenant = await resolvePreviewTenant(data?.tenant, req.payload);
+        if (!tenant) return undefined;
+        return `${tenantPreviewURL({
+          tenant,
           slug: data?.slug ?? "",
-        })}?preview=true`,
+        })}?preview=true`;
+      },
     },
   },
   collections: [Users, Tenants, Pages, Media, RevalidationEvents],
