@@ -59,6 +59,7 @@ export default buildConfig({
   admin: {
     user: "users",
     livePreview: {
+      collections: ["pages"],
       url: ({ data }) =>
         `${tenantPreviewURL({
           tenant: data?.tenant?.slug ?? "demo1",
