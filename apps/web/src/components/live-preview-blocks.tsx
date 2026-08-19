@@ -9,9 +9,11 @@ import { mergeMedia } from "../lib/live-preview";
 export function LivePreviewBlocks({
   blocks,
   pageId,
+  preview = false,
 }: {
   blocks: Page["layout"];
   pageId?: Page["id"];
+  preview?: boolean;
 }) {
   const router = useRouter();
   const [currentBlocks, setCurrentBlocks] = useState(blocks);
@@ -63,6 +65,12 @@ export function LivePreviewBlocks({
       );
     return () => window.removeEventListener("message", handleMessage);
   }, [pageId, router]);
+
+  useEffect(() => {
+    if (!preview) return;
+    const interval = window.setInterval(() => router.refresh(), 1_000);
+    return () => window.clearInterval(interval);
+  }, [preview, router]);
 
   return <Blocks blocks={currentBlocks} />;
 }

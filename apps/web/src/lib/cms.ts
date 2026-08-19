@@ -38,12 +38,11 @@ export async function getPage(
   if (authenticatedPreview) params.set("draft", "true");
   const headers = new Headers(cmsHeaders);
   if (authenticatedPreview) headers.set("cookie", cookieHeader);
-  const response = await fetch(
-    `${cmsUrl}/api/pages?${params}`,
-    authenticatedPreview
-      ? { headers, cache: "no-store" }
-      : { headers, next: { revalidate: 60, tags: [`page:${tenant}:${slug}`] } },
-  );
+  const requestOptions =
+    authenticatedPreview || process.env.NODE_ENV !== "production"
+      ? { headers, cache: "no-store" as const }
+      : { headers, next: { revalidate: 60, tags: [`page:${tenant}:${slug}`] } };
+  const response = await fetch(`${cmsUrl}/api/pages?${params}`, requestOptions);
   if (!response.ok) return null;
   return ((await response.json()) as { docs: Page[] }).docs[0] ?? null;
 }
