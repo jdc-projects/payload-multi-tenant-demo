@@ -31,4 +31,19 @@ describe("page block registry", () => {
       ).toMatchObject({ name: "aspectRatio", defaultValue: "16:9" });
     }
   });
+
+  it("gives media blocks an editor-controlled size", () => {
+    for (const slug of ["hero", "image", "video"]) {
+      const block = pageBlocks.find((item) => item.slug === slug);
+      expect(
+        block?.fields.find(
+          (field) => "name" in field && field.name === "mediaSize",
+        ),
+      ).toMatchObject({
+        name: "mediaSize",
+        defaultValue: "full",
+        options: ["full", "large", "medium", "narrow"],
+      });
+    }
+  });
 });

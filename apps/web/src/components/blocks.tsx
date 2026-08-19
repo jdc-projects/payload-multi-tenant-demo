@@ -69,7 +69,7 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
           </Text>
         ) : null}
         {image?.url ? (
-          <div style={mediaFrameStyle(block.aspectRatio)}>
+          <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
             <Image
               src={mediaURL(image.url)}
               alt={String(block.heading)}
@@ -162,7 +162,7 @@ function ImageBlock({ block }: { block: Record<string, unknown> }) {
   const image = block.image as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
-      <div style={mediaFrameStyle(block.aspectRatio)}>
+      <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
         <Image
           src={mediaURL(image?.url)}
           alt={String(block.alt ?? "")}
@@ -183,7 +183,7 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
   const poster = block.poster as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
-      <div style={mediaFrameStyle(block.aspectRatio)}>
+      <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
         <video
           controls
           poster={mediaURL(poster?.url)}
@@ -208,12 +208,21 @@ function mediaAspectRatio(value: unknown) {
   return "16 / 9";
 }
 
-function mediaFrameStyle(value: unknown): CSSProperties {
+function mediaMaxWidth(value: unknown) {
+  if (value === "large") return "56rem";
+  if (value === "medium") return "45rem";
+  if (value === "narrow") return "30rem";
+  return "100%";
+}
+
+function mediaFrameStyle(aspectRatio: unknown, size: unknown): CSSProperties {
   return {
-    aspectRatio: mediaAspectRatio(value),
+    aspectRatio: mediaAspectRatio(aspectRatio),
     overflow: "hidden",
     position: "relative",
     width: "100%",
+    maxWidth: mediaMaxWidth(size),
+    marginInline: "auto",
     borderRadius: "var(--mantine-radius-md)",
   };
 }
