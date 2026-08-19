@@ -1,4 +1,6 @@
 import { loadRootEnv } from "../../../scripts/env.js";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { getPayload } from "payload";
 import {
   fixturePath,
@@ -14,7 +16,10 @@ import {
 } from "./seed-data.js";
 
 loadRootEnv();
-const { default: config } = await import("./payload.config.js");
+
+async function payloadConfig() {
+  return (await import("./payload.config.js")).default;
+}
 
 export const tenants = [
   {
@@ -34,7 +39,7 @@ export const tenants = [
   },
 ];
 async function exportFixture(output: string) {
-  const payload = await getPayload({ config });
+  const payload = await getPayload({ config: await payloadConfig() });
   const tenantDocs = await readAllPages((page) =>
     payload.find({
       collection: "tenants",
@@ -102,6 +107,7 @@ async function importTenant(
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req: { transactionID },
   });
   const record = existing.docs[0];
   if (!record) {
@@ -138,6 +144,7 @@ async function importMedia(
   payload: PayloadClient,
   media: SeedFixture["media"][number],
   mediaIDs: Map<string, string>,
+  transactionID: string | number,
 ): Promise<boolean> {
   const existing = await payload.find({
     collection: "media",
@@ -145,6 +152,7 @@ async function importMedia(
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req: { transactionID },
   });
   const record = existing.docs[0];
   if (record) {
@@ -183,6 +191,7 @@ async function importPage(
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req: { transactionID },
   });
   const record = existing.docs[0];
   if (!record) {
@@ -216,11 +225,12 @@ async function importPage(
 async function prepareMedia(
   payload: PayloadClient,
   fixture: SeedFixture,
+  transactionID: string | number,
 ): Promise<{ mediaIDs: Map<string, string>; missingMedia: Set<string> }> {
   const mediaIDs = new Map<string, string>();
   const missingMedia = new Set<string>();
   for (const media of fixture.media) {
-    if (!(await importMedia(payload, media, mediaIDs)))
+    if (!(await importMedia(payload, media, mediaIDs, transactionID)))
       missingMedia.add(media.ref);
   }
   for (const page of fixture.pages) {
@@ -268,9 +278,14 @@ async function importPages(
   return skipped;
 }
 
-async function importFixture(input: string, force: boolean) {
+export async function importFixture(
+  input: string,
+  force: boolean,
+  providedPayload?: PayloadClient,
+) {
   const fixture = await readFixture(input);
-  const payload = await getPayload({ config });
+  const payload =
+    providedPayload ?? (await getPayload({ config: await payloadConfig() }));
   const tenantIDs = new Map<string, string>();
   try {
     const knownTenants = new Set(fixture.tenants.map(({ slug }) => slug));
@@ -281,12 +296,6 @@ async function importFixture(input: string, force: boolean) {
       throw new Error(
         `Fixture page references unknown tenant ${unknownTenant.tenant}`,
       );
-    const { mediaIDs, missingMedia } = await prepareMedia(payload, fixture);
-    if (missingMedia.size)
-      throw new Error(
-        `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
-      );
-
     // Payload's database transaction is shared by every local API operation.
     // This prevents a validation or adapter error halfway through the fixture
     // from leaving tenants/pages written without the rest of the fixture.
@@ -305,6 +314,15 @@ async function importFixture(input: string, force: boolean) {
     if (transactionID === null)
       throw new Error("Payload failed to start fixture transaction");
     try {
+      const { mediaIDs, missingMedia } = await prepareMedia(
+        payload,
+        fixture,
+        transactionID,
+      );
+      if (missingMedia.size)
+        throw new Error(
+          `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
+        );
       const skipped =
         (await importTenants(
           payload,
@@ -324,16 +342,29 @@ async function importFixture(input: string, force: boolean) {
       await db.commitTransaction(transactionID);
       console.log(`Imported fixture (skipped ${skipped} changed records)`);
     } catch (error) {
-      await db.rollbackTransaction(transactionID).catch(() => undefined);
+      try {
+        await db.rollbackTransaction(transactionID);
+      } catch (rollbackError) {
+        const originalMessage =
+          error instanceof Error ? error.message : String(error);
+        const rollbackMessage =
+          rollbackError instanceof Error
+            ? rollbackError.message
+            : String(rollbackError);
+        throw new Error(
+          `Fixture import failed: ${originalMessage}; rollback failed: ${rollbackMessage}`,
+          { cause: error },
+        );
+      }
       throw error;
     }
   } finally {
-    await payload.db.destroy?.();
+    if (!providedPayload) await payload.db.destroy?.();
   }
 }
 
 async function seed() {
-  const payload = await getPayload({ config });
+  const payload = await getPayload({ config: await payloadConfig() });
   for (const tenant of tenants) {
     const existing = await payload.find({
       collection: "tenants",
@@ -395,20 +426,25 @@ async function seed() {
   console.log(`Seeded ${tenants.length} tenants`);
 }
 
-const [command, argument, ...flags] = process.argv.slice(2);
-const operation =
-  command === "export" || command === "import" ? command : "seed";
-const file =
-  argument ?? (operation === "export" ? fixturePath() : fixturePath());
-const run =
-  operation === "export"
-    ? exportFixture(file)
-    : operation === "import"
-      ? importFixture(file, flags.includes("--force"))
-      : seed();
-void run
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+if (
+  process.argv[1] &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+) {
+  const [command, argument, ...flags] = process.argv.slice(2);
+  const operation =
+    command === "export" || command === "import" ? command : "seed";
+  const file =
+    argument ?? (operation === "export" ? fixturePath() : fixturePath());
+  const run =
+    operation === "export"
+      ? exportFixture(file)
+      : operation === "import"
+        ? importFixture(file, flags.includes("--force"))
+        : seed();
+  void run
+    .then(() => process.exit(0))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
