@@ -5,6 +5,7 @@ const resolver = tenantResolverFromEnv();
 const hostResolutionMode = ["domain", "subdomain"].includes(
   process.env.TENANT_RESOLUTION_STRATEGY ?? "path",
 );
+const allowPathFallback = process.env.TENANT_ALLOW_PATH_FALLBACK === "true";
 
 export function middleware(request: NextRequest) {
   const publicHost = request.headers.get("host") ?? undefined;
@@ -17,7 +18,7 @@ export function middleware(request: NextRequest) {
   // a path prefix as authoritative and would otherwise allow tenant selection
   // on an untrusted host.
   if (!result) {
-    return hostResolutionMode
+    return hostResolutionMode || !allowPathFallback
       ? new NextResponse("Not Found", { status: 404 })
       : NextResponse.next();
   }

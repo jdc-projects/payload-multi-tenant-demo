@@ -37,6 +37,25 @@ describe("tenant resolver", () => {
     ).toBeNull();
   });
 
+  it("requires explicit configuration before falling back on an untrusted path host", () => {
+    const resolver = createTenantResolver({ ...config, strategy: "path" });
+    expect(
+      resolver.resolve({ pathname: "/demo1/about", host: "attacker.test" }),
+    ).toBeNull();
+
+    const fallbackResolver = createTenantResolver({
+      ...config,
+      strategy: "path",
+      allowPathFallback: true,
+    });
+    expect(
+      fallbackResolver.resolve({
+        pathname: "/demo1/about",
+        host: "attacker.test",
+      }),
+    ).toMatchObject({ tenant: "demo1", strategy: "path" });
+  });
+
   it("resolves an explicitly mapped trusted domain", () => {
     const resolver = createTenantResolver({
       ...config,
@@ -55,6 +74,25 @@ describe("tenant resolver", () => {
         "/about",
       ),
     ).toBe("https://acme.example.test/about");
+  });
+
+  it("does not echo a request port in canonical URLs", () => {
+    const resolver = createTenantResolver({
+      ...config,
+      strategy: "domain",
+      domains: { demo1: "acme.example.test" },
+    });
+    const resolution = resolver.resolve({
+      pathname: "/about",
+      host: "acme.example.test:4444",
+    });
+    expect(resolution).toMatchObject({ publicHost: "acme.example.test" });
+    expect(resolver.canonicalUrl(resolution!, "/about")).toBe(
+      "https://acme.example.test/about",
+    );
+    expect(
+      resolver.resolve({ pathname: "/about", host: "acme.example.test:bad" }),
+    ).toBeNull();
   });
 
   it("resolves trusted subdomains and produces canonical and preview URLs", () => {
