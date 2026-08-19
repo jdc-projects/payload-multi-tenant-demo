@@ -225,7 +225,7 @@ export const Pages: CollectionConfig = {
     useAsTitle: "title",
     defaultColumns: ["title", "tenant", "slug", "_status", "updatedAt"],
     components: {
-      beforeListTable: [{ path: "src/components/pages/tenant-filter.tsx" }],
+      beforeListTable: [{ path: "./src/components/pages/tenant-filter.tsx" }],
     },
   },
   access: {

@@ -1,5 +1,6 @@
 {
   "ignoreDependencies": ["artillery", "serve"],
+  "ignorePatterns": ["apps/cms/src/components/pages/tenant-filter.tsx"],
   "health": {
     "maxCrap": 100,
     "maxUnitSize": 100
