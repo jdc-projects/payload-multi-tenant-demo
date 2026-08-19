@@ -34,6 +34,7 @@ Scripts are hierarchical and must remain repeatable:
 - `npm run dev` starts Docker dependencies and host watch-mode apps through Turborepo.
 - `npm run build` builds both applications as standalone artifacts and does not start Docker or seed data.
 - `npm run build:managed` runs the seeded prod-like build and managed lifecycle, including Docker dependencies and cleanup.
+- `npm run format` formats the entire repository; use `npm run format:scoped -- <path>` for targeted files or directories.
 - `npm run validate` is the required complete local gate.
 - `npm run test:unit` runs Vitest without a build or service stack.
 - `npm run test:playwright` runs isolated web Playwright tests against built artifacts through managed Caddy (including its managed lifecycle).
