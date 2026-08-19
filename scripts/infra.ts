@@ -8,7 +8,7 @@ const project = process.env.TEST_COMPOSE_PROJECT;
 const args = ["compose"];
 if (project) args.push("-p", project);
 args.push("-f", "infra/docker-compose.yml", command);
-if (command === "up") args.push("-d");
+if (command === "up") args.push("-d", "--wait");
 
 const env = {
   ...process.env,
@@ -16,6 +16,8 @@ const env = {
   S3_PORT: process.env.S3_PORT ?? "9000",
   S3_CONSOLE_PORT: process.env.S3_CONSOLE_PORT ?? "9001",
   PROXY_PORT: process.env.PROXY_PORT ?? "8888",
+  WEB_UPSTREAM: `host.docker.internal:${process.env.WEB_PORT ?? "3000"}`,
+  CMS_UPSTREAM: `host.docker.internal:${process.env.CMS_PORT ?? "3001"}`,
 };
 const child = spawn("docker", args, { stdio: "inherit", env });
 child.once("error", (error) => {
