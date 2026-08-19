@@ -156,7 +156,7 @@ export const RevalidationEvents: CollectionConfig = {
   admin: { hidden: true },
   fields: [
     { name: "tenant", type: "text", required: true },
-    { name: "slug", type: "text", required: true },
+    { name: "slug", type: "text", defaultValue: "" },
   ],
 };
 
