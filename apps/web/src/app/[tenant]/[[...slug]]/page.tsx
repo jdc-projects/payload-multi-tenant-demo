@@ -22,7 +22,12 @@ export async function generateMetadata({
   const requestHeaders = await headers();
   const resolution = tenantResolverFromEnv().resolve({
     pathname: `/${tenant}${path}`,
-    host: requestHeaders.get("host") ?? undefined,
+    // Middleware rewrites the path but carries the verified public host along
+    // so metadata remains canonical to the domain the visitor requested.
+    host:
+      requestHeaders.get("x-tenant-public-host") ??
+      requestHeaders.get("host") ??
+      undefined,
   });
   return {
     title: page?.title,

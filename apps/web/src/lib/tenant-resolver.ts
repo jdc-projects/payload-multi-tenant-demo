@@ -10,6 +10,8 @@ export type TenantResolution = {
   tenant: string;
   pathname: string;
   strategy: TenantResolutionStrategy;
+  /** The verified public host used to reach this tenant. */
+  publicHost?: string;
 };
 
 export type TenantResolverConfig = {
@@ -58,6 +60,7 @@ export function createTenantResolver(
   function resolve(request: TenantResolverRequest): TenantResolution | null {
     const pathname = cleanPath(request.pathname);
     const host = cleanHost(request.host);
+    const publicHost = (request.host ?? "").toLowerCase();
     if (!host || !isTrusted(host)) return null;
     if (config.strategy === "path") {
       const tenant = pathname.split("/")[1];
@@ -68,13 +71,13 @@ export function createTenantResolver(
     if (config.strategy === "domain") {
       const tenant = domains[host];
       return tenant && validTenant(tenant)
-        ? { tenant, pathname, strategy: "domain" }
+        ? { tenant, pathname, strategy: "domain", publicHost }
         : null;
     }
     if (!baseDomain || !host.endsWith(`.${baseDomain}`)) return null;
     const tenant = host.slice(0, -(baseDomain.length + 1));
     return tenant && !tenant.includes(".") && validTenant(tenant)
-      ? { tenant, pathname, strategy: "subdomain" }
+      ? { tenant, pathname, strategy: "subdomain", publicHost }
       : null;
   }
 
@@ -84,9 +87,16 @@ export function createTenantResolver(
     resolve,
     canonicalUrl: (resolution, pathname = resolution.pathname) => {
       const path = cleanPath(pathname);
-      return resolution.strategy === "path"
-        ? `${base}/${resolution.tenant}${path}`
-        : `${base}${path}`;
+      if (resolution.strategy === "path")
+        return `${base}/${resolution.tenant}${path}`;
+      if (!resolution.publicHost) return `${base}${path}`;
+      try {
+        const url = new URL(base);
+        url.host = resolution.publicHost;
+        return `${url.origin}${path}`;
+      } catch {
+        return `${base}${path}`;
+      }
     },
     previewUrl: (tenant, pathname = "/") =>
       `${preview}/${tenant}${cleanPath(pathname)}`,

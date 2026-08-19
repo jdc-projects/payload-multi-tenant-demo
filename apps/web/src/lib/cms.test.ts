@@ -49,6 +49,12 @@ describe("tenant resolver", () => {
     expect(
       resolver.resolve({ pathname: "/about", host: "other.example.test" }),
     ).toBeNull();
+    expect(
+      resolver.canonicalUrl(
+        resolver.resolve({ pathname: "/about", host: "acme.example.test" })!,
+        "/about",
+      ),
+    ).toBe("https://acme.example.test/about");
   });
 
   it("resolves trusted subdomains and produces canonical and preview URLs", () => {
@@ -64,7 +70,7 @@ describe("tenant resolver", () => {
     });
     expect(resolution?.tenant).toBe("demo3");
     expect(resolver.canonicalUrl(resolution!, "/about")).toBe(
-      "https://example.test/about",
+      "https://demo3.example.test/about",
     );
     expect(resolver.previewUrl("demo3", "/about")).toBe(
       "http://localhost:3000/demo3/about",
