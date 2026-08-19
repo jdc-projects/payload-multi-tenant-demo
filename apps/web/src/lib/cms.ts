@@ -26,22 +26,20 @@ export async function getPage(
   slug = "",
   preview = false,
 ): Promise<Page | null> {
+  const cookieHeader = preview ? (await cookies()).toString() : "";
+  const authenticatedPreview = preview && Boolean(cookieHeader);
   const params = new URLSearchParams({
     where: JSON.stringify({
       and: [{ "tenant.slug": { equals: tenant } }, { slug: { equals: slug } }],
     }),
     depth: "2",
   });
-  if (preview) params.set("draft", "true");
+  if (authenticatedPreview) params.set("draft", "true");
   const headers = new Headers(cmsHeaders);
-  if (preview) {
-    const cookie = await cookies();
-    const cookieHeader = cookie.toString();
-    if (cookieHeader) headers.set("cookie", cookieHeader);
-  }
+  if (authenticatedPreview) headers.set("cookie", cookieHeader);
   const response = await fetch(
     `${cmsUrl}/api/pages?${params}`,
-    preview
+    authenticatedPreview
       ? { headers, cache: "no-store" }
       : { headers, next: { revalidate: 60, tags: [`page:${tenant}:${slug}`] } },
   );
