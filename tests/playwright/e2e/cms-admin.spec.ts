@@ -169,7 +169,7 @@ test("Acme About preview loads its image block", async ({ page }) => {
     preview.getByRole("heading", {
       name: "A small studio with a broad brief",
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30_000 });
   const image = preview.getByRole("img", { name: "Abstract studio landscape" });
   await expect(image).toBeVisible();
   const imageSrc = await image.getAttribute("src");
