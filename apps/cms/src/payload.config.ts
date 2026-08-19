@@ -19,6 +19,9 @@ const databaseURL =
 const s3Endpoint =
   process.env.S3_ENDPOINT ??
   `${process.env.S3_PROTOCOL ?? "http"}://${process.env.S3_HOST ?? "localhost"}:${process.env.S3_PORT ?? "9000"}`;
+const cmsURL =
+  process.env.NEXT_PUBLIC_CMS_URL ??
+  `${process.env.CMS_PROTOCOL ?? "http"}://${process.env.CMS_HOST ?? "localhost"}:${process.env.CMS_PORT ?? "3001"}`;
 const webURL =
   process.env.NEXT_PUBLIC_WEB_URL ??
   `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
@@ -79,6 +82,7 @@ const resolvePreviewTenant = async (tenant: unknown, payload: any) => {
 };
 
 export default buildConfig({
+  serverURL: cmsURL,
   admin: {
     user: "users",
     livePreview: {
