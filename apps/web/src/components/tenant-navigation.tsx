@@ -34,7 +34,7 @@ export function TenantNavigation({
       py="md"
       style={{ borderBottom: "1px solid var(--mantine-color-gray-3)" }}
     >
-      <Container size="lg">
+      <Container size="lg" w="100%">
         <Group justify="space-between" wrap="nowrap">
           <Text fw={700} component="a" href={`/${tenant}/`} c="var(--accent)">
             {pages.find((page) => page.slug === "")?.title ?? tenant}

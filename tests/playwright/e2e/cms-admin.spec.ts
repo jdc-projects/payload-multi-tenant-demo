@@ -294,6 +294,7 @@ test("full-size media fills the shared content width", async ({ page }) => {
   });
   expect(login.ok()).toBe(true);
 
+  const frameWidths: number[] = [];
   for (const path of ["/demo1/about", "/demo3/journal"]) {
     await page.goto(`${path}?preview=true`);
     const frame = page.locator('div[style*="aspect-ratio"]').first();
@@ -312,5 +313,8 @@ test("full-size media fills the shared content width", async ({ page }) => {
     });
     expect(widths.frame).toBeGreaterThan(0);
     expect(widths.frame).toBeCloseTo(widths.container, 0);
+    frameWidths.push(widths.frame);
   }
+  expect(frameWidths[0]).toBeGreaterThan(1000);
+  expect(frameWidths[0]).toBeCloseTo(frameWidths[1] ?? 0, 0);
 });

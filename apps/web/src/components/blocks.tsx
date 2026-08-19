@@ -54,7 +54,7 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
     Array<{ label: string; href: string }> | undefined;
   const image = block.image as { url?: string } | undefined;
   return (
-    <Container size="lg" py={spacingValue(block.spacing, "xl")}>
+    <Container size="lg" w="100%" py={spacingValue(block.spacing, "xl")}>
       <Stack gap="lg">
         {block.eyebrow ? (
           <Text tt="uppercase" fw={700} c="dimmed" size="sm">
@@ -97,7 +97,7 @@ function FeatureGridBlock({ block }: { block: Record<string, unknown> }) {
   const features = block.features as
     Array<{ title: string; body?: string; icon?: string }> | undefined;
   return (
-    <Container size="lg" py={spacingValue(block.spacing, "lg")}>
+    <Container size="lg" w="100%" py={spacingValue(block.spacing, "lg")}>
       {block.heading ? <Title order={2}>{String(block.heading)}</Title> : null}
       <SimpleGrid cols={{ base: 1, sm: 2 }} mt="xl">
         {features?.map((feature) => {
@@ -124,7 +124,7 @@ const featureIcons: Record<string, typeof IconCircleCheck> = {
 
 function CallToActionBlock({ block }: { block: Record<string, unknown> }) {
   return (
-    <Container size="lg" py={spacingValue(block.spacing, "lg")}>
+    <Container size="lg" w="100%" py={spacingValue(block.spacing, "lg")}>
       <Card withBorder padding="xl">
         <Title order={2}>{String(block.heading)}</Title>
         {block.body ? <Text my="md">{String(block.body)}</Text> : null}
@@ -162,7 +162,7 @@ function TenantButton({
 function ImageBlock({ block }: { block: Record<string, unknown> }) {
   const image = block.image as { url?: string } | undefined;
   return (
-    <Container size="lg" py={spacingValue(block.spacing, "lg")}>
+    <Container size="lg" w="100%" py={spacingValue(block.spacing, "lg")}>
       <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
         <Image
           src={mediaURL(image?.url)}
@@ -183,7 +183,7 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
   const video = block.video as { url?: string } | undefined;
   const poster = block.poster as { url?: string } | undefined;
   return (
-    <Container size="lg" py={spacingValue(block.spacing, "lg")}>
+    <Container size="lg" w="100%" py={spacingValue(block.spacing, "lg")}>
       <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
         <video
           controls
@@ -232,7 +232,7 @@ const mediaContentStyle: CSSProperties = {
 
 function RichTextBlock({ block }: { block: Record<string, unknown> }) {
   return (
-    <Container size="lg" py={spacingValue(block.spacing, "lg")}>
+    <Container size="lg" w="100%" py={spacingValue(block.spacing, "lg")}>
       <Stack>{renderRichText(block.content)}</Stack>
     </Container>
   );
