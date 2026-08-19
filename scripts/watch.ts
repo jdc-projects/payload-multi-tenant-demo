@@ -9,6 +9,7 @@ const ports = {
   web: process.env.WEB_PORT ?? "3000",
   proxy: process.env.PROXY_PORT ?? "8888",
 };
+const composeProject = `payload-demo-watch-${process.pid}`;
 const environment = {
   ...process.env,
   POSTGRES_PORT: process.env.POSTGRES_PORT ?? "5432",
@@ -81,7 +82,15 @@ function cleanup() {
   try {
     execFileSync(
       "docker",
-      ["compose", "-f", "infra/docker-compose.yml", "down", "--remove-orphans"],
+      [
+        "compose",
+        "-p",
+        composeProject,
+        "-f",
+        "infra/docker-compose.yml",
+        "down",
+        "--remove-orphans",
+      ],
       { cwd: root, env: environment, stdio: "inherit" },
     );
   } catch {
@@ -92,6 +101,8 @@ function cleanup() {
 async function main() {
   const infrastructure = run("docker", [
     "compose",
+    "-p",
+    composeProject,
     "-f",
     "infra/docker-compose.yml",
     "up",
