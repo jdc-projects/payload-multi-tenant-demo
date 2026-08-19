@@ -18,6 +18,7 @@ import {
 import type { CSSProperties, ReactNode } from "react";
 import { mediaURL } from "../lib/media";
 import type { Page } from "../lib/cms";
+import { mediaMaxWidth } from "../lib/media-size";
 
 export function Blocks({ blocks }: { blocks: Page["layout"] }) {
   return (
@@ -206,13 +207,6 @@ function mediaAspectRatio(value: unknown) {
   if (value === "4:3") return "4 / 3";
   if (value === "1:1") return "1 / 1";
   return "16 / 9";
-}
-
-function mediaMaxWidth(value: unknown) {
-  if (value === "large") return "56rem";
-  if (value === "medium") return "45rem";
-  if (value === "narrow") return "30rem";
-  return "100%";
 }
 
 function mediaFrameStyle(aspectRatio: unknown, size: unknown): CSSProperties {
