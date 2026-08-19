@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Blocks } from "./blocks";
 import type { Page } from "../lib/cms";
+import { mergeMedia } from "../lib/live-preview";
 
 export function LivePreviewBlocks({
   blocks,
@@ -64,29 +65,4 @@ export function LivePreviewBlocks({
   }, [pageId, router]);
 
   return <Blocks blocks={currentBlocks} />;
-}
-
-function mergeMedia(
-  current: Page["layout"],
-  incoming: Page["layout"],
-): Page["layout"] {
-  return incoming.map((block, index) => {
-    const previous = current[index];
-    if (!previous) return block;
-    const merged = { ...block };
-    for (const field of ["image", "video", "poster"]) {
-      const nextMedia = block[field] as { url?: unknown } | undefined;
-      const previousMedia = previous[field] as { url?: unknown } | undefined;
-      if (
-        previousMedia &&
-        typeof previousMedia === "object" &&
-        typeof previousMedia.url === "string" &&
-        (!nextMedia ||
-          typeof nextMedia !== "object" ||
-          typeof nextMedia.url !== "string")
-      )
-        merged[field] = previousMedia;
-    }
-    return merged;
-  });
 }
