@@ -14,7 +14,7 @@ function unresolvedResponse(request: NextRequest): NextResponse | undefined {
     return new NextResponse("Not Found", { status: 404 });
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const publicHost = request.headers.get("host") ?? undefined;
   const result = resolver.resolve({
     pathname: request.nextUrl.pathname,
