@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "tenants": [
+    {
+      "name": "Acme Studio",
+      "slug": "demo1",
+      "theme": { "primaryColor": "#5b21b6", "fontFamily": "Inter" }
+    },
+    {
+      "name": "Northstar",
+      "slug": "demo2",
+      "theme": { "primaryColor": "#0f766e", "fontFamily": "Georgia" }
+    },
+    {
+      "name": "Field Notes",
+      "slug": "demo3",
+      "theme": { "primaryColor": "#c2410c", "fontFamily": "system-ui" }
+    }
+  ],
+  "pages": [
+    {
+      "title": "Acme Studio",
+      "slug": "",
+      "_status": "published",
+      "tenant": "demo1",
+      "layout": [
+        {
+          "blockType": "hero",
+          "heading": "Welcome to Acme Studio",
+          "body": "A Payload-powered site assembled from code-defined components.",
+          "actions": [{ "label": "Explore", "href": "#" }],
+          "spacing": "lg"
+        },
+        {
+          "blockType": "featureGrid",
+          "heading": "Built for flexible content",
+          "features": [
+            {
+              "title": "Composable",
+              "body": "Editors arrange approved components into a page."
+            },
+            {
+              "title": "Tenant-aware",
+              "body": "Each tenant owns its content and visual theme."
+            }
+          ],
+          "spacing": "md"
+        }
+      ]
+    },
+    {
+      "title": "Northstar",
+      "slug": "",
+      "_status": "published",
+      "tenant": "demo2",
+      "layout": [
+        {
+          "blockType": "hero",
+          "heading": "Welcome to Northstar",
+          "body": "A Payload-powered site assembled from code-defined components.",
+          "actions": [{ "label": "Explore", "href": "#" }],
+          "spacing": "lg"
+        },
+        {
+          "blockType": "featureGrid",
+          "heading": "Built for flexible content",
+          "features": [
+            {
+              "title": "Composable",
+              "body": "Editors arrange approved components into a page."
+            },
+            {
+              "title": "Tenant-aware",
+              "body": "Each tenant owns its content and visual theme."
+            }
+          ],
+          "spacing": "md"
+        }
+      ]
+    },
+    {
+      "title": "Field Notes",
+      "slug": "",
+      "_status": "published",
+      "tenant": "demo3",
+      "layout": [
+        {
+          "blockType": "hero",
+          "heading": "Welcome to Field Notes",
+          "body": "A Payload-powered site assembled from code-defined components.",
+          "actions": [{ "label": "Explore", "href": "#" }],
+          "spacing": "lg"
+        },
+        {
+          "blockType": "featureGrid",
+          "heading": "Built for flexible content",
+          "features": [
+            {
+              "title": "Composable",
+              "body": "Editors arrange approved components into a page."
+            },
+            {
+              "title": "Tenant-aware",
+              "body": "Each tenant owns its content and visual theme."
+            }
+          ],
+          "spacing": "md"
+        }
+      ]
+    }
+  ],
+  "media": []
+}
