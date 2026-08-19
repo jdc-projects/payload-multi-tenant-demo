@@ -221,7 +221,13 @@ export const Tenants: CollectionConfig = {
 export const Pages: CollectionConfig = {
   slug: "pages",
   versions: { drafts: true },
-  admin: { useAsTitle: "title" },
+  admin: {
+    useAsTitle: "title",
+    defaultColumns: ["title", "tenant", "slug", "_status", "updatedAt"],
+    components: {
+      beforeListTable: [{ path: "src/components/pages/tenant-filter.tsx" }],
+    },
+  },
   access: {
     read: pageRead,
     create: authenticated,
