@@ -36,6 +36,15 @@ const cleanPath = (pathname: string) => {
   return path === "/" ? "/" : path.replace(/\/+$/, "") || "/";
 };
 type Host = { hostname: string; port?: number };
+type DomainMapping = { tenant: string; port?: number; publicHost: string };
+type ResolverContext = {
+  strategy: TenantResolutionStrategy;
+  trusted: Host[];
+  domains: Record<string, DomainMapping>;
+  baseDomainHost: Host | null;
+  baseDomain?: string;
+  allowPathFallback?: boolean;
+};
 
 const parseHost = (value = ""): Host | null => {
   const input = value.trim().toLowerCase();
@@ -51,6 +60,99 @@ const parseHost = (value = ""): Host | null => {
 };
 const validTenant = (value: string) => /^[a-z0-9][a-z0-9-]*$/.test(value);
 
+const trustedHost = (request: Host, trusted: Host[]) =>
+  trusted.some((allowed) => {
+    const hostnameMatch = allowed.hostname.startsWith("*.")
+      ? request.hostname.endsWith(allowed.hostname.slice(1)) &&
+        request.hostname !== allowed.hostname.slice(2)
+      : request.hostname === allowed.hostname;
+    return (
+      hostnameMatch &&
+      (allowed.port === undefined || request.port === allowed.port)
+    );
+  });
+
+const pathResolution = (pathname: string): TenantResolution | null => {
+  const tenant = pathname.split("/")[1];
+  return tenant && validTenant(tenant)
+    ? { tenant, pathname, strategy: "path" }
+    : null;
+};
+
+const domainResolution = (
+  pathname: string,
+  requestHost: Host,
+  domains: Record<string, DomainMapping>,
+): TenantResolution | null => {
+  const mapping = domains[requestHost.hostname];
+  return mapping &&
+    (mapping.port === undefined || mapping.port === requestHost.port) &&
+    validTenant(mapping.tenant)
+    ? {
+        tenant: mapping.tenant,
+        pathname,
+        strategy: "domain",
+        publicHost: mapping.publicHost,
+      }
+    : null;
+};
+
+const subdomainResolution = (
+  pathname: string,
+  requestHost: Host,
+  context: ResolverContext,
+): TenantResolution | null => {
+  const { baseDomain, baseDomainHost } = context;
+  if (!baseDomain || !requestHost.hostname.endsWith(`.${baseDomain}`))
+    return null;
+  if (
+    baseDomainHost?.port !== undefined &&
+    baseDomainHost.port !== requestHost.port
+  )
+    return null;
+  const tenant = requestHost.hostname.slice(0, -(baseDomain.length + 1));
+  return tenant && !tenant.includes(".") && validTenant(tenant)
+    ? {
+        tenant,
+        pathname,
+        strategy: "subdomain",
+        publicHost: baseDomainHost?.port
+          ? `${tenant}.${baseDomain}:${baseDomainHost.port}`
+          : `${tenant}.${baseDomain}`,
+      }
+    : null;
+};
+
+const resolveByStrategy = (
+  pathname: string,
+  requestHost: Host | null,
+  context: ResolverContext,
+): TenantResolution | null => {
+  if (context.strategy === "path") return pathResolution(pathname);
+  if (!requestHost) return null;
+  return context.strategy === "domain"
+    ? domainResolution(pathname, requestHost, context.domains)
+    : subdomainResolution(pathname, requestHost, context);
+};
+
+const canonicalUrl = (
+  base: string,
+  resolution: TenantResolution,
+  pathname: string,
+) => {
+  const path = cleanPath(pathname);
+  if (resolution.strategy === "path")
+    return `${base}/${resolution.tenant}${path}`;
+  if (!resolution.publicHost) return `${base}${path}`;
+  try {
+    const url = new URL(base);
+    url.host = resolution.publicHost;
+    return `${url.origin}${path}`;
+  } catch {
+    return `${base}${path}`;
+  }
+};
+
 export function createTenantResolver(
   config: TenantResolverConfig,
 ): TenantResolver {
@@ -58,17 +160,6 @@ export function createTenantResolver(
     const parsed = parseHost(value);
     return parsed ? [parsed] : [];
   });
-  const isTrusted = (request: Host) =>
-    trusted.some((allowed) => {
-      const hostnameMatch = allowed.hostname.startsWith("*.")
-        ? request.hostname.endsWith(allowed.hostname.slice(1)) &&
-          request.hostname !== allowed.hostname.slice(2)
-        : request.hostname === allowed.hostname;
-      return (
-        hostnameMatch &&
-        (allowed.port === undefined || request.port === allowed.port)
-      );
-    });
   const domains = Object.fromEntries(
     Object.entries(config.domains ?? {}).flatMap(([tenant, domain]) => {
       const parsed = parseHost(domain);
@@ -81,80 +172,36 @@ export function createTenantResolver(
                 port: parsed.port,
                 publicHost: domain.trim().toLowerCase(),
               },
-            ] as const,
+            ],
           ]
         : [];
     }),
-  );
+  ) as Record<string, DomainMapping>;
   const baseDomainHost = parseHost(config.baseDomain);
-  const baseDomain = baseDomainHost?.hostname;
-
-  function resolve(request: TenantResolverRequest): TenantResolution | null {
-    const pathname = cleanPath(request.pathname);
-    const requestHost = parseHost(request.host);
-    const host = requestHost?.hostname;
-    const trustedRequest = requestHost ? isTrusted(requestHost) : false;
-    if (
-      (!host || !trustedRequest) &&
-      !(config.strategy === "path" && config.allowPathFallback)
-    )
-      return null;
-    if (config.strategy === "path") {
-      const tenant = pathname.split("/")[1];
-      return tenant && validTenant(tenant)
-        ? { tenant, pathname, strategy: "path" }
-        : null;
-    }
-    if (!host) return null;
-    if (config.strategy === "domain") {
-      const mapping = domains[host];
-      return mapping &&
-        (mapping.port === undefined || mapping.port === requestHost?.port) &&
-        validTenant(mapping.tenant)
-        ? {
-            tenant: mapping.tenant,
-            pathname,
-            strategy: "domain",
-            publicHost: mapping.publicHost,
-          }
-        : null;
-    }
-    if (!baseDomain || !host.endsWith(`.${baseDomain}`)) return null;
-    if (
-      baseDomainHost?.port !== undefined &&
-      baseDomainHost.port !== requestHost?.port
-    )
-      return null;
-    const tenant = host.slice(0, -(baseDomain.length + 1));
-    return tenant && !tenant.includes(".") && validTenant(tenant)
-      ? {
-          tenant,
-          pathname,
-          strategy: "subdomain",
-          publicHost: baseDomainHost?.port
-            ? `${tenant}.${baseDomain}:${baseDomainHost.port}`
-            : `${tenant}.${baseDomain}`,
-        }
-      : null;
-  }
-
+  const context: ResolverContext = {
+    strategy: config.strategy,
+    trusted,
+    domains,
+    baseDomainHost,
+    baseDomain: baseDomainHost?.hostname,
+    allowPathFallback: config.allowPathFallback,
+  };
   const base = (config.canonicalBaseUrl ?? "").replace(/\/$/, "");
   const preview = (config.previewBaseUrl ?? base).replace(/\/$/, "");
   return {
-    resolve,
-    canonicalUrl: (resolution, pathname = resolution.pathname) => {
-      const path = cleanPath(pathname);
-      if (resolution.strategy === "path")
-        return `${base}/${resolution.tenant}${path}`;
-      if (!resolution.publicHost) return `${base}${path}`;
-      try {
-        const url = new URL(base);
-        url.host = resolution.publicHost;
-        return `${url.origin}${path}`;
-      } catch {
-        return `${base}${path}`;
-      }
+    resolve: (request) => {
+      const pathname = cleanPath(request.pathname);
+      const requestHost = parseHost(request.host);
+      const allowed = requestHost && trustedHost(requestHost, context.trusted);
+      if (
+        !allowed &&
+        !(context.strategy === "path" && context.allowPathFallback)
+      )
+        return null;
+      return resolveByStrategy(pathname, requestHost, context);
     },
+    canonicalUrl: (resolution, pathname = resolution.pathname) =>
+      canonicalUrl(base, resolution, pathname),
     previewUrl: (tenant, pathname = "/") =>
       `${preview}/${tenant}${cleanPath(pathname)}`,
   };
