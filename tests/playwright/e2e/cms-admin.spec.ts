@@ -174,6 +174,7 @@ test("Acme About preview loads its image block", async ({ page }) => {
   await expect(image).toBeVisible();
   const imageSrc = await image.getAttribute("src");
   expect(imageSrc).toBeTruthy();
+  expect(imageSrc).toMatch(/\/media\/studio-mark\.svg$/);
   const imageResponse = await page.request.get(imageSrc!);
   expect(imageResponse.ok()).toBe(true);
   await expect
