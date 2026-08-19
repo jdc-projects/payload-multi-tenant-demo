@@ -37,7 +37,10 @@ const validTenant = (value: string) => /^[a-z0-9][a-z0-9-]*$/.test(value);
 export function createTenantResolver(
   config: TenantResolverConfig,
 ): TenantResolver {
-  const trusted = config.trustedHosts.map(cleanHost).filter(Boolean);
+  const trusted = config.trustedHosts.flatMap((host) => {
+    const cleaned = cleanHost(host);
+    return cleaned ? [cleaned] : [];
+  });
   const isTrusted = (host: string) =>
     trusted.some((allowed) =>
       allowed.startsWith("*.")
@@ -91,10 +94,10 @@ export function createTenantResolver(
 }
 
 const list = (value?: string) =>
-  (value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  (value ?? "").split(",").flatMap((item) => {
+    const trimmed = item.trim();
+    return trimmed ? [trimmed] : [];
+  });
 const jsonMap = (value?: string): Record<string, string> => {
   if (!value) return {};
   try {
