@@ -52,6 +52,10 @@ const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
 };
 
 const revalidationTimeoutMs = 5_000;
+// Payload runs collection hooks before the database transaction is committed.
+// Yielding to the event loop lets the operation commit before the renderer
+// reads the document that this notification invalidates.
+const revalidationDelayMs = 100;
 
 type PageSnapshot = { tenant?: any; slug?: string };
 
@@ -70,27 +74,15 @@ const resolveTenantSlug = async (tenant: any, req: any) => {
     });
     return record.slug;
   } catch {
-    // A failed lookup must not prevent an editor from saving.
-    return typeof tenant === "string" ? tenant : undefined;
+    // A tenant ID is not a route segment. Never notify with it when resolving
+    // the relationship failed (for example while a transaction is rolling
+    // back); the next successful save can safely retry the invalidation.
+    return undefined;
   }
 };
 
-/** Notify the renderer after either a draft save or a publish. */
-const revalidateWebPage = async ({
-  doc,
-  previousDoc,
-  req,
-}: {
-  doc: any;
-  previousDoc?: any;
-  req: any;
-}) => {
-  if (!revalidationSecret) return doc;
-
-  const snapshots: PageSnapshot[] = [doc];
-  if (previousDoc) snapshots.push(previousDoc);
+const notifyWebPages = async (snapshots: PageSnapshot[], req: any) => {
   const notifications = new Map<string, Promise<unknown>>();
-
   await Promise.all(
     snapshots.map(async (snapshot) => {
       const tenant = await resolveTenantSlug(snapshot.tenant, req);
@@ -115,6 +107,25 @@ const revalidateWebPage = async ({
     }),
   );
   await Promise.all(notifications.values());
+};
+
+/** Notify the renderer after the surrounding Payload transaction commits. */
+const revalidateWebPage = async ({
+  doc,
+  previousDoc,
+  req,
+}: {
+  doc: any;
+  previousDoc?: any;
+  req: any;
+}) => {
+  if (!revalidationSecret) return doc;
+
+  const snapshots: PageSnapshot[] = [doc];
+  if (previousDoc) snapshots.push(previousDoc);
+  setTimeout(() => {
+    void notifyWebPages(snapshots, req);
+  }, revalidationDelayMs);
   return doc;
 };
 
@@ -189,6 +200,7 @@ export const Pages: CollectionConfig = {
   hooks: {
     beforeChange: [enforceTenantWrite],
     afterChange: [revalidateWebPage],
+    afterDelete: [revalidateWebPage],
   },
   fields: [
     { name: "title", type: "text", required: true },
