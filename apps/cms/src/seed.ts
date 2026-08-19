@@ -93,6 +93,102 @@ async function exportFixture(output: string) {
 }
 
 type PayloadClient = Awaited<ReturnType<typeof getPayload>>;
+type TransactionID = string | number;
+type TransactionDatabase = PayloadClient["db"] & {
+  beginTransaction?: () => Promise<TransactionID | null>;
+  commitTransaction?: (id: TransactionID) => Promise<void>;
+  rollbackTransaction?: (id: TransactionID) => Promise<void>;
+};
+
+const transactionMethods = [
+  "beginTransaction",
+  "commitTransaction",
+  "rollbackTransaction",
+] as const;
+
+function getTransactionDatabase(payload: PayloadClient): TransactionDatabase {
+  const db = payload.db as TransactionDatabase;
+  if (transactionMethods.some((method) => !db[method]))
+    throw new Error("Payload database does not support fixture transactions");
+  return db;
+}
+
+function validateFixtureTenants(fixture: SeedFixture) {
+  const knownTenants = new Set(fixture.tenants.map(({ slug }) => slug));
+  const unknownTenant = fixture.pages.find(
+    (page) => !knownTenants.has(page.tenant),
+  );
+  if (unknownTenant)
+    throw new Error(
+      `Fixture page references unknown tenant ${unknownTenant.tenant}`,
+    );
+}
+
+async function rollbackFixture(
+  db: TransactionDatabase,
+  transactionID: TransactionID,
+  error: unknown,
+): Promise<never> {
+  try {
+    await db.rollbackTransaction!(transactionID);
+  } catch (rollbackError) {
+    const originalMessage =
+      error instanceof Error ? error.message : String(error);
+    const rollbackMessage =
+      rollbackError instanceof Error
+        ? rollbackError.message
+        : String(rollbackError);
+    throw new Error(
+      `Fixture import failed: ${originalMessage}; rollback failed: ${rollbackMessage}`,
+      { cause: error },
+    );
+  }
+  throw error;
+}
+
+async function runFixtureTransaction(
+  db: TransactionDatabase,
+  operation: (transactionID: TransactionID) => Promise<void>,
+) {
+  const transactionID = await db.beginTransaction!();
+  if (transactionID === null)
+    throw new Error("Payload failed to start fixture transaction");
+  try {
+    await operation(transactionID);
+    await db.commitTransaction!(transactionID);
+  } catch (error) {
+    await rollbackFixture(db, transactionID, error);
+  }
+}
+
+async function importFixtureRecords(
+  payload: PayloadClient,
+  fixture: SeedFixture,
+  force: boolean,
+  tenantIDs: Map<string, string>,
+  transactionID: TransactionID,
+) {
+  const { mediaIDs, missingMedia } = await prepareMedia(
+    payload,
+    fixture,
+    transactionID,
+  );
+  if (missingMedia.size)
+    throw new Error(
+      `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
+    );
+  const skipped =
+    (await importTenants(payload, fixture, force, tenantIDs, transactionID)) +
+    (await importPages(
+      payload,
+      fixture,
+      force,
+      tenantIDs,
+      mediaIDs,
+      transactionID,
+    ));
+  console.log(`Imported fixture (skipped ${skipped} changed records)`);
+}
 
 async function importTenant(
   payload: PayloadClient,
@@ -288,76 +384,15 @@ export async function importFixture(
     providedPayload ?? (await getPayload({ config: await payloadConfig() }));
   const tenantIDs = new Map<string, string>();
   try {
-    const knownTenants = new Set(fixture.tenants.map(({ slug }) => slug));
-    const unknownTenant = fixture.pages.find(
-      (page) => !knownTenants.has(page.tenant),
-    );
-    if (unknownTenant)
-      throw new Error(
-        `Fixture page references unknown tenant ${unknownTenant.tenant}`,
-      );
+    validateFixtureTenants(fixture);
     // Payload's database transaction is shared by every local API operation.
     // This prevents a validation or adapter error halfway through the fixture
     // from leaving tenants/pages written without the rest of the fixture.
-    const db = payload.db as typeof payload.db & {
-      beginTransaction?: () => Promise<string | number | null>;
-      commitTransaction?: (id: string | number) => Promise<void>;
-      rollbackTransaction?: (id: string | number) => Promise<void>;
-    };
-    if (
-      !db.beginTransaction ||
-      !db.commitTransaction ||
-      !db.rollbackTransaction
-    )
-      throw new Error("Payload database does not support fixture transactions");
-    const transactionID = await db.beginTransaction();
-    if (transactionID === null)
-      throw new Error("Payload failed to start fixture transaction");
-    try {
-      const { mediaIDs, missingMedia } = await prepareMedia(
-        payload,
-        fixture,
-        transactionID,
-      );
-      if (missingMedia.size)
-        throw new Error(
-          `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
-        );
-      const skipped =
-        (await importTenants(
-          payload,
-          fixture,
-          force,
-          tenantIDs,
-          transactionID,
-        )) +
-        (await importPages(
-          payload,
-          fixture,
-          force,
-          tenantIDs,
-          mediaIDs,
-          transactionID,
-        ));
-      await db.commitTransaction(transactionID);
-      console.log(`Imported fixture (skipped ${skipped} changed records)`);
-    } catch (error) {
-      try {
-        await db.rollbackTransaction(transactionID);
-      } catch (rollbackError) {
-        const originalMessage =
-          error instanceof Error ? error.message : String(error);
-        const rollbackMessage =
-          rollbackError instanceof Error
-            ? rollbackError.message
-            : String(rollbackError);
-        throw new Error(
-          `Fixture import failed: ${originalMessage}; rollback failed: ${rollbackMessage}`,
-          { cause: error },
-        );
-      }
-      throw error;
-    }
+    await runFixtureTransaction(
+      getTransactionDatabase(payload),
+      (transactionID) =>
+        importFixtureRecords(payload, fixture, force, tenantIDs, transactionID),
+    );
   } finally {
     if (!providedPayload) await payload.db.destroy?.();
   }
