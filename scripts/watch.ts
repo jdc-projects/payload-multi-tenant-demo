@@ -4,17 +4,23 @@ import { loadRootEnv } from "./env.js";
 loadRootEnv();
 
 const root = process.cwd();
+const portOffset = process.pid % 10_000;
+const configuredPort = (name: string, testName: string, fallback: number) =>
+  process.env[name] ?? process.env[testName] ?? String(fallback + portOffset);
 const ports = {
-  cms: process.env.CMS_PORT ?? "3001",
-  web: process.env.WEB_PORT ?? "3000",
-  proxy: process.env.PROXY_PORT ?? "8888",
+  cms: configuredPort("CMS_PORT", "TEST_CMS_PORT", 24_000),
+  web: configuredPort("WEB_PORT", "TEST_WEB_PORT", 25_000),
+  proxy: configuredPort("PROXY_PORT", "TEST_PROXY_PORT", 23_000),
+  postgres: configuredPort("POSTGRES_PORT", "TEST_POSTGRES_PORT", 20_000),
+  s3: configuredPort("S3_PORT", "TEST_S3_PORT", 21_000),
+  s3Console: configuredPort("S3_CONSOLE_PORT", "TEST_S3_CONSOLE_PORT", 22_000),
 };
 const composeProject = `payload-demo-watch-${process.pid}`;
 const environment = {
   ...process.env,
-  POSTGRES_PORT: process.env.POSTGRES_PORT ?? "5432",
-  S3_PORT: process.env.S3_PORT ?? "9000",
-  S3_CONSOLE_PORT: process.env.S3_CONSOLE_PORT ?? "9001",
+  POSTGRES_PORT: ports.postgres,
+  S3_PORT: ports.s3,
+  S3_CONSOLE_PORT: ports.s3Console,
   CMS_PORT: ports.cms,
   WEB_PORT: ports.web,
   PROXY_PORT: ports.proxy,
@@ -39,6 +45,13 @@ function waitForExit(child: ChildProcess) {
     child.once("error", reject);
     child.once("exit", (code) => resolve(code ?? 1));
   });
+}
+
+function exitStatus(code: number | null, signal: NodeJS.Signals | null) {
+  if (code !== null) return code;
+  if (signal === "SIGINT") return 130;
+  if (signal === "SIGTERM") return 143;
+  return 1;
 }
 
 async function waitFor(url: string, timeout = 120_000) {
@@ -122,23 +135,38 @@ async function main() {
     ["--import", "tsx", `${root}/scripts/run-next.ts`, "web", "dev"],
     `${root}/apps/web`,
   );
-  for (const [child, name] of [
-    [cms, "CMS"],
-    [web, "web"],
-  ] as const)
-    child.once("exit", (code) => {
-      if (!cleaning && code !== 0) {
-        console.error(`${name} watch process exited (${code ?? "signal"})`);
+  const watchExit = new Promise<number>((resolve) => {
+    for (const [child, name] of [
+      [cms, "CMS"],
+      [web, "web"],
+    ] as const)
+      child.once("exit", (code, signal) => {
+        if (cleaning) return;
+        console.error(
+          `${name} watch process exited (${code ?? signal ?? "unknown"})`,
+        );
         cleanup();
-        process.exit(1);
-      }
-    });
+        resolve(exitStatus(code, signal));
+      });
+  });
 
-  await waitFor(`http://127.0.0.1:${ports.cms}/admin`);
-  await waitFor(`http://127.0.0.1:${ports.web}/`);
-  await waitFor(`http://127.0.0.1:${ports.proxy}/`);
+  async function waitForReady(url: string) {
+    const result = await Promise.race([
+      waitFor(url).then(() => null),
+      watchExit.then((status) => ({ status })),
+    ]);
+    if (result !== null) {
+      process.exitCode = result.status;
+      return false;
+    }
+    return true;
+  }
+
+  if (!(await waitForReady(`http://127.0.0.1:${ports.cms}/admin`))) return;
+  if (!(await waitForReady(`http://127.0.0.1:${ports.web}/`))) return;
+  if (!(await waitForReady(`http://127.0.0.1:${ports.proxy}/`))) return;
   console.log(`Watch mode ready: http://127.0.0.1:${ports.proxy}/`);
-  await new Promise(() => undefined);
+  process.exitCode = await watchExit;
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const)
