@@ -203,10 +203,10 @@ async function importPage(
   return changed;
 }
 
-async function importFixture(input: string, force: boolean) {
-  const fixture = await readFixture(input);
-  const payload = await getPayload({ config });
-  const tenantIDs = new Map<string, string>();
+async function prepareMedia(
+  payload: PayloadClient,
+  fixture: SeedFixture,
+): Promise<{ mediaIDs: Map<string, string>; missingMedia: Set<string> }> {
   const mediaIDs = new Map<string, string>();
   const missingMedia = new Set<string>();
   for (const media of fixture.media) {
@@ -217,21 +217,50 @@ async function importFixture(input: string, force: boolean) {
     for (const ref of collectMediaRefs(page.layout))
       if (!mediaIDs.has(ref)) missingMedia.add(ref);
   }
+  return { mediaIDs, missingMedia };
+}
+
+async function importTenants(
+  payload: PayloadClient,
+  fixture: SeedFixture,
+  force: boolean,
+  tenantIDs: Map<string, string>,
+) {
+  let skipped = 0;
+  for (const tenant of fixture.tenants)
+    skipped += Number(await importTenant(payload, tenant, force, tenantIDs));
+  return skipped;
+}
+
+async function importPages(
+  payload: PayloadClient,
+  fixture: SeedFixture,
+  force: boolean,
+  tenantIDs: Map<string, string>,
+  mediaIDs: Map<string, string>,
+) {
+  let skipped = 0;
+  for (const page of fixture.pages)
+    skipped += Number(
+      await importPage(payload, page, force, tenantIDs, mediaIDs),
+    );
+  return skipped;
+}
+
+async function importFixture(input: string, force: boolean) {
+  const fixture = await readFixture(input);
+  const payload = await getPayload({ config });
+  const tenantIDs = new Map<string, string>();
+  const { mediaIDs, missingMedia } = await prepareMedia(payload, fixture);
   if (missingMedia.size) {
     await payload.db.destroy?.();
     throw new Error(
       `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
     );
   }
-  let skipped = 0;
-  for (const tenant of fixture.tenants) {
-    skipped += Number(await importTenant(payload, tenant, force, tenantIDs));
-  }
-  for (const page of fixture.pages) {
-    skipped += Number(
-      await importPage(payload, page, force, tenantIDs, mediaIDs),
-    );
-  }
+  const skipped =
+    (await importTenants(payload, fixture, force, tenantIDs)) +
+    (await importPages(payload, fixture, force, tenantIDs, mediaIDs));
   console.log(`Imported fixture (skipped ${skipped} changed records)`);
   await payload.db.destroy?.();
 }
