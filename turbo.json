@@ -25,7 +25,8 @@
     "WEB_HOST",
     "WEB_PORT",
     "NEXT_DIST_DIR",
-    "CMS_RENDERER_TOKEN"
+    "CMS_RENDERER_TOKEN",
+    "CMS_BUILD_ROUTE_DISCOVERY"
   ],
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "dist/**"] },
