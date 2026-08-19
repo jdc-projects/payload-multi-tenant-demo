@@ -18,12 +18,19 @@ test("tenant pages preserve hierarchy, links, and responsive layout", async ({
   await page.goto("/demo1/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "About Acme Studio" }).first(),
+  ).toHaveAttribute("href", "/demo1/about/");
   await expect(page.getByRole("link", { name: "Explore" })).toHaveAttribute(
     "href",
     "#",
   );
 
   await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await expect(
+    page.getByRole("link", { name: "About Acme Studio" }),
+  ).toBeVisible();
   await expect(page.locator("body")).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),

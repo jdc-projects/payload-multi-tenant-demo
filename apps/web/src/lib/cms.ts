@@ -21,6 +21,8 @@ export type Page = {
 
 type Tenant = { slug: string };
 
+export type NavigationPage = { title: string; slug: string };
+
 export async function getPage(
   tenant: string,
   slug = "",
@@ -54,6 +56,28 @@ export async function getTenants(): Promise<string[]> {
   if (!response.ok) return [];
   const data = (await response.json()) as { docs: Tenant[] };
   return data.docs.map((tenant) => tenant.slug);
+}
+
+export async function getNavigation(tenant: string): Promise<NavigationPage[]> {
+  const params = new URLSearchParams({
+    where: JSON.stringify({
+      and: [
+        { "tenant.slug": { equals: tenant } },
+        { _status: { equals: "published" } },
+      ],
+    }),
+    depth: "0",
+    limit: "1000",
+  });
+  const response = await fetch(`${cmsUrl}/api/pages?${params}`, {
+    headers: cmsHeaders,
+    next: { revalidate: 60, tags: [`navigation:${tenant}`] },
+  });
+  if (!response.ok) return [];
+  const data = (await response.json()) as {
+    docs: Array<{ title: string; slug: string }>;
+  };
+  return data.docs;
 }
 
 export async function getPagePaths(): Promise<

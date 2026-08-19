@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { Blocks } from "../../../components/blocks";
-import { getPage, getPagePaths } from "../../../lib/cms";
+import { TenantNavigation } from "../../../components/tenant-navigation";
+import { getNavigation, getPage, getPagePaths } from "../../../lib/cms";
 import { accessibleTextColor } from "../../../lib/theme";
 import { tenantResolverFromEnv } from "../../../lib/tenant-resolver";
 
@@ -47,6 +48,7 @@ export default async function TenantPage({
   const isPreview = preview === "true";
   const page = await getPage(tenant, slug.join("/"), isPreview);
   if (!page) notFound();
+  const navigation = await getNavigation(tenant);
   return (
     <main
       style={
@@ -62,6 +64,11 @@ export default async function TenantPage({
         } as React.CSSProperties
       }
     >
+      <TenantNavigation
+        tenant={tenant}
+        pages={navigation}
+        currentSlug={slug.join("/")}
+      />
       <Blocks blocks={page.layout} />
     </main>
   );

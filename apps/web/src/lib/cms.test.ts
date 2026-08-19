@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getTenants } from "./cms";
+import { getNavigation, getTenants } from "./cms";
 import { createTenantResolver } from "./tenant-resolver";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -18,6 +18,28 @@ describe("tenant mapping", () => {
       ),
     );
     await expect(getTenants()).resolves.toEqual(["demo1", "demo2", "demo3"]);
+  });
+
+  it("loads only published pages for the requested tenant", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          docs: [
+            { title: "Acme Studio", slug: "" },
+            { title: "About Acme Studio", slug: "about" },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getNavigation("demo1")).resolves.toEqual([
+      { title: "Acme Studio", slug: "" },
+      { title: "About Acme Studio", slug: "about" },
+    ]);
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("demo1");
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("published");
   });
 });
 
