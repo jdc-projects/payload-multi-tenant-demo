@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 export type SeedFixture = {
@@ -19,6 +20,7 @@ export function normalize(value: unknown): unknown {
   return Object.fromEntries(
     Object.entries(value)
       .filter(([key]) => !["id", "createdAt", "updatedAt"].includes(key))
+      .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, item]) => [key, normalize(item)]),
   );
 }
@@ -86,8 +88,13 @@ export async function readAllPages<T>(
     const result = await find(page);
     docs.push(...result.docs);
     if (!result.hasNextPage) break;
-    page = result.nextPage ?? page + 1;
-  } while (docs.length < Number.MAX_SAFE_INTEGER);
+    const nextPage = result.nextPage ?? page + 1;
+    if (result.docs.length === 0 || nextPage <= page)
+      throw new Error(
+        `Invalid pagination progress: page ${page} returned ${result.docs.length} records and nextPage ${nextPage}`,
+      );
+    page = nextPage;
+  } while (true);
   return docs;
 }
 
@@ -108,5 +115,25 @@ export async function readFixture(file: string): Promise<SeedFixture> {
 
 export async function writeFixture(file: string, fixture: SeedFixture) {
   await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(fixture, null, 2)}\n`);
+  let mode: number | undefined;
+  try {
+    mode = (await fs.stat(file)).mode & 0o777;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const temporary = path.join(
+    path.dirname(file),
+    `.${path.basename(file)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  try {
+    await fs.writeFile(temporary, `${JSON.stringify(fixture, null, 2)}\n`, {
+      flag: "wx",
+      mode: mode ?? 0o666,
+    });
+    if (mode !== undefined) await fs.chmod(temporary, mode);
+    await fs.rename(temporary, file);
+  } catch (error) {
+    await fs.rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  }
 }
