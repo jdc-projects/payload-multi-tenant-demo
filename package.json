@@ -15,6 +15,7 @@
     "dev": "tsx scripts/watch.ts",
     "dev:infra": "tsx scripts/infra.ts up",
     "start": "npm run dev:infra && node --env-file-if-exists=.env node_modules/turbo/bin/turbo run start --parallel",
+    "start:infra": "tsx scripts/infra.ts up",
     "test:stack": "tsx scripts/test-stack.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
