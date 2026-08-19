@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 
+const minimalPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 test("authenticated media upload, public retrieval, and delete lifecycle", async ({
   request,
 }) => {
@@ -8,7 +13,7 @@ test("authenticated media upload, public retrieval, and delete lifecycle", async
       file: {
         name: "anonymous.png",
         mimeType: "image/png",
-        buffer: Buffer.from("png"),
+        buffer: minimalPng,
       },
     },
   });
@@ -27,7 +32,7 @@ test("authenticated media upload, public retrieval, and delete lifecycle", async
       file: {
         name: "lifecycle.png",
         mimeType: "image/png",
-        buffer: Buffer.from("png"),
+        buffer: minimalPng,
       },
       alt: "Lifecycle test image",
     },
