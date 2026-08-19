@@ -7,13 +7,23 @@ const authenticated = ({ req }: { req: { user?: unknown } }) =>
   Boolean(req.user);
 const MAX_MEDIA_SIZE = 25 * 1024 * 1024;
 export function validateMediaUpload(file: unknown) {
-  const candidate = file as { mimetype?: unknown; size?: unknown };
+  const candidate = file as {
+    data?: unknown;
+    mimetype?: unknown;
+    size?: unknown;
+  };
   if (
     typeof candidate.mimetype !== "string" ||
     !/^(image|video)\//.test(candidate.mimetype)
   )
     throw new Error("Media must be an image or video.");
-  if (typeof candidate.size !== "number" || candidate.size > MAX_MEDIA_SIZE)
+  const size =
+    typeof candidate.size === "number"
+      ? candidate.size
+      : Buffer.isBuffer(candidate.data)
+        ? candidate.data.length
+        : undefined;
+  if (typeof size !== "number" || size > MAX_MEDIA_SIZE)
     throw new Error("Media must be 25 MiB or smaller.");
 }
 const tenantScope = ({ req }: { req: { user?: unknown } }) => {

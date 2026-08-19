@@ -72,6 +72,7 @@ export default buildConfig({
     s3Storage({
       collections: { media: true },
       bucket: process.env.S3_BUCKET ?? "payload-media",
+      acl: "public-read",
       config: {
         credentials: {
           accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "payload",
