@@ -3,7 +3,14 @@ import { s3Storage } from "@payloadcms/storage-s3";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
 import sharp from "sharp";
-import { Media, Pages, Tenants, Users } from "./collections.js";
+import {
+  Media,
+  Pages,
+  RevalidationEvents,
+  Tenants,
+  Users,
+  startRevalidationWorker,
+} from "./collections.js";
 import { ensureMediaBucket } from "./storage.js";
 
 const databaseURL =
@@ -53,13 +60,13 @@ export default buildConfig({
     user: "users",
     livePreview: {
       url: ({ data }) =>
-        tenantPreviewURL({
+        `${tenantPreviewURL({
           tenant: data?.tenant?.slug ?? "demo1",
           slug: data?.slug ?? "",
-        }),
+        })}?preview=true`,
     },
   },
-  collections: [Users, Tenants, Pages, Media],
+  collections: [Users, Tenants, Pages, Media, RevalidationEvents],
   editor: lexicalEditor(),
   sharp,
   secret: payloadSecret,
@@ -86,6 +93,7 @@ export default buildConfig({
   ],
   onInit: async (payload) => {
     await ensureMediaBucket();
+    if (process.env.REVALIDATION_SECRET) startRevalidationWorker(payload);
     const email = process.env.PAYLOAD_ADMIN_EMAIL;
     const password = process.env.PAYLOAD_ADMIN_PASSWORD;
     if (

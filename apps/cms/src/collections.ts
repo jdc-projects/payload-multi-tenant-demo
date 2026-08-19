@@ -1,6 +1,11 @@
 import type { CollectionConfig } from "payload";
 import { pageBlocks } from "./blocks.js";
 
+const webURL =
+  process.env.NEXT_PUBLIC_WEB_URL ??
+  `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
+const revalidationSecret = process.env.REVALIDATION_SECRET;
+
 type TenantUser = { tenant?: string | { id: string } };
 
 const authenticated = ({ req }: { req: { user?: unknown } }) =>
@@ -44,6 +49,115 @@ const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
   if (req.user) return tenantScope({ req });
   if (rendererAccess({ req })) return { _status: { equals: "published" } };
   return false;
+};
+
+const revalidationTimeoutMs = 5_000;
+const revalidationPollMs = 250;
+
+type PageSnapshot = { tenant?: any; slug?: string };
+
+const resolveTenantSlug = async (tenant: any, req: any) => {
+  if (!tenant) return undefined;
+  if (typeof tenant !== "string" && typeof tenant.slug === "string")
+    return tenant.slug;
+  const tenantID = typeof tenant === "string" ? tenant : tenant.id;
+  if (!tenantID) return undefined;
+  try {
+    const record = await req.payload.findByID({
+      collection: "tenants",
+      id: tenantID,
+      depth: 0,
+      overrideAccess: true,
+    });
+    return record.slug;
+  } catch {
+    // A tenant ID is not a route segment. Never notify with it when resolving
+    // the relationship failed (for example while a transaction is rolling
+    // back); the next successful save can safely retry the invalidation.
+    return undefined;
+  }
+};
+
+/**
+ * Payload collection hooks run inside the write transaction. Store the
+ * notification in an outbox in that same transaction; the worker below only
+ * sees it after Postgres commits, so invalidation cannot race the write.
+ */
+const revalidateWebPage = async ({
+  doc,
+  previousDoc,
+  req,
+}: {
+  doc: any;
+  previousDoc?: any;
+  req: any;
+}) => {
+  if (!revalidationSecret) return doc;
+
+  const snapshots: PageSnapshot[] = [doc];
+  if (previousDoc) snapshots.push(previousDoc);
+  for (const snapshot of snapshots) {
+    const tenant = await resolveTenantSlug(snapshot.tenant, req);
+    if (!tenant) continue;
+    await req.payload.create({
+      collection: "revalidation-events",
+      data: { tenant, slug: snapshot.slug ?? "" },
+      overrideAccess: true,
+      req,
+    });
+  }
+  return doc;
+};
+
+export const startRevalidationWorker = (payload: any) => {
+  const process = async (): Promise<void> => {
+    try {
+      const events = await payload.find({
+        collection: "revalidation-events",
+        limit: 20,
+        sort: "createdAt",
+        overrideAccess: true,
+      });
+      for (const event of events.docs) {
+        const tenant = event.tenant as string;
+        const slug = (event.slug as string | undefined) ?? "";
+        const response = await fetch(`${webURL}/api/revalidate`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${revalidationSecret}`,
+          },
+          body: JSON.stringify({ tenant, slug }),
+          signal: AbortSignal.timeout(revalidationTimeoutMs),
+        }).catch(() => undefined);
+        if (response?.ok)
+          await payload.delete({
+            collection: "revalidation-events",
+            id: event.id,
+            overrideAccess: true,
+          });
+      }
+    } catch {
+      // Keep events in the outbox and retry after the next poll.
+    }
+    setTimeout(() => void process(), revalidationPollMs);
+  };
+  void process();
+};
+
+export const RevalidationEvents: CollectionConfig = {
+  slug: "revalidation-events",
+  access: {
+    read: () => false,
+    create: () => false,
+    update: () => false,
+    delete: () => false,
+  },
+  admin: { hidden: true },
+  fields: [
+    { name: "tenant", type: "text", required: true },
+    { name: "slug", type: "text", defaultValue: "" },
+  ],
 };
 
 export const enforceTenantWrite = ({
@@ -114,7 +228,11 @@ export const Pages: CollectionConfig = {
     update: tenantScope,
     delete: tenantScope,
   },
-  hooks: { beforeChange: [enforceTenantWrite] },
+  hooks: {
+    beforeChange: [enforceTenantWrite],
+    afterChange: [revalidateWebPage],
+    afterDelete: [revalidateWebPage],
+  },
   fields: [
     { name: "title", type: "text", required: true },
     { name: "slug", type: "text", defaultValue: "" },

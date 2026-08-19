@@ -6,6 +6,10 @@
   handle /admin* {
     reverse_proxy {$CMS_UPSTREAM}
   }
+  @revalidate path /api/revalidate /api/revalidate/
+  handle @revalidate {
+    reverse_proxy {$WEB_UPSTREAM}
+  }
   handle /api* {
     reverse_proxy {$CMS_UPSTREAM}
   }

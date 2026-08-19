@@ -15,7 +15,8 @@ process.env.CMS_RENDERER_TOKEN ??= "test-renderer-token";
 export default defineConfig({
   testDir: "./e2e",
   globalTeardown: "./global-teardown.ts",
-  fullyParallel: true,
+  // Payload's shared admin account invalidates concurrent test sessions.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "dot" : "list",
