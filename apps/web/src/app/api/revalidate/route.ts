@@ -11,7 +11,10 @@ export async function POST(request: Request) {
   };
   if (!body.tenant) return new Response("Bad request", { status: 400 });
   const slug = body.slug ?? "";
-  revalidateTag(`page:${body.tenant}:${slug}`, "max");
+  // This endpoint is called after a CMS save. Expiring immediately makes the
+  // next visitor fetch fresh content instead of serving the stale-while-
+  // revalidate response produced by the default "max" profile.
+  revalidateTag(`page:${body.tenant}:${slug}`, { expire: 0 });
   revalidatePath(`/${body.tenant}/${slug}`);
   return Response.json({ revalidated: true });
 }
