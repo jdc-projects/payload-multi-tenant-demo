@@ -2,7 +2,7 @@
   "name": "@demo/web",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "next build && tsx ../../scripts/normalize-next-env.ts web",
     "dev": "tsx ../../scripts/run-next.ts web dev",
     "start": "tsx ../../scripts/run-next.ts web start",
     "lint": "eslint .",

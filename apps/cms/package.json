@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "payload generate:importmap && prettier --write 'src/app/(payload)/admin/importMap.js' && payload generate:types && next build --webpack",
+    "build": "payload generate:importmap && prettier --write 'src/app/(payload)/admin/importMap.js' && payload generate:types && next build --webpack && tsx ../../scripts/normalize-next-env.ts cms",
     "dev": "tsx ../../scripts/run-next.ts cms dev",
     "start": "tsx ../../scripts/run-next.ts cms start",
     "lint": "tsc --noEmit",
