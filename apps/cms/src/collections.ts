@@ -5,6 +5,27 @@ type TenantUser = { tenant?: string | { id: string } };
 
 const authenticated = ({ req }: { req: { user?: unknown } }) =>
   Boolean(req.user);
+const MAX_MEDIA_SIZE = 25 * 1024 * 1024;
+export function validateMediaUpload(file: unknown) {
+  const candidate = file as {
+    data?: unknown;
+    mimetype?: unknown;
+    size?: unknown;
+  };
+  if (
+    typeof candidate.mimetype !== "string" ||
+    !/^(image|video)\//.test(candidate.mimetype)
+  )
+    throw new Error("Media must be an image or video.");
+  const size =
+    typeof candidate.size === "number"
+      ? candidate.size
+      : Buffer.isBuffer(candidate.data)
+        ? candidate.data.length
+        : undefined;
+  if (typeof size !== "number" || size > MAX_MEDIA_SIZE)
+    throw new Error("Media must be 25 MiB or smaller.");
+}
 const tenantScope = ({ req }: { req: { user?: unknown } }) => {
   if (!req.user) return false;
   const tenant = (req.user as TenantUser).tenant;
@@ -109,7 +130,16 @@ export const Pages: CollectionConfig = {
 };
 export const Media: CollectionConfig = {
   slug: "media",
-  upload: { mimeTypes: ["image/*", "video/*"] },
+  upload: {
+    mimeTypes: ["image/*", "video/*"],
+  },
+  hooks: {
+    beforeValidate: [
+      ({ req }) => {
+        if (req.file) validateMediaUpload(req.file);
+      },
+    ],
+  },
   access: {
     read: () => true,
     create: authenticated,

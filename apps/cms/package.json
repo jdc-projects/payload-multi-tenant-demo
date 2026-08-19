@@ -12,10 +12,11 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1112.0",
     "@payloadcms/db-postgres": "^3",
     "@payloadcms/next": "^3",
-    "@payloadcms/storage-s3": "^3",
     "@payloadcms/richtext-lexical": "^3",
+    "@payloadcms/storage-s3": "^3",
     "graphql": "^16",
     "next": "^16",
     "payload": "^3",

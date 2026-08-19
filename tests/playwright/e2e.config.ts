@@ -28,6 +28,8 @@ export default defineConfig({
     command: "cd ../.. && exec npx tsx scripts/test-stack.ts e2e",
     url: `http://127.0.0.1:${proxyPort}/`,
     reuseExistingServer: false,
-    timeout: 180000,
+    // Allow slow Docker/Podman hosts to finish the managed CMS build while
+    // preserving Playwright's readiness polling and teardown lifecycle.
+    timeout: 600000,
   },
 });

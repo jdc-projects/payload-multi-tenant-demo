@@ -39,6 +39,13 @@ host-based routing without an explicit trusted-host list.
 - `S3_PROTOCOL`, `S3_HOST`, and `S3_PORT` for RustFS S3
 - `S3_CONSOLE_PORT` for the RustFS administration console
 
+The CMS uses `S3_BUCKET` as its media bucket. On every startup it attempts an
+idempotent create and then performs a bucket HEAD request; an unavailable or
+unauthorized bucket fails startup rather than allowing records whose objects
+cannot be served. Media uploads are authenticated, limited to image/video MIME
+types, and capped at 25 MiB. Reads remain public through Payload's media route
+and Caddy's `/media/*` proxy path.
+
 Managed suites also accept `TEST_CMS_PORT`, `TEST_WEB_PORT`, `TEST_PROXY_PORT`, `TEST_POSTGRES_PORT`, `TEST_S3_PORT`, and `TEST_S3_CONSOLE_PORT`. Managed suites select isolated application, proxy, database, and RustFS ports automatically; the `TEST_*` values override them when needed. For example:
 
 ```sh

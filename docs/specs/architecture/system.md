@@ -37,8 +37,8 @@ Blocks are declared in `apps/cms/src/blocks.ts` and therefore cannot be added or
 
 ## Access Boundaries
 
-This local demo deliberately does not model role-based CMS administration. Authenticated Payload users may administer shared tenant and media records; this is not a public write surface. Public visitors may read published pages and media through the renderer, but cannot write through Payload access controls. Tenant metadata is public for route discovery and branding. Published page records are not publicly queryable through Payload REST; the web renderer uses the separately configured `CMS_RENDERER_TOKEN`. Every runtime requires `PAYLOAD_SECRET` from the environment.
+This local demo deliberately does not model role-based CMS administration. Authenticated Payload users may administer shared tenant and media records; this is not a public write surface. Public visitors may read media (including the `/media/:filename` retrieval route) but cannot upload, update, or delete through Payload access controls. Media accepts image and video MIME types up to 25 MiB. The CMS provisions and validates the configured RustFS bucket at startup, and Caddy forwards `/media/*` to the CMS while the remaining site remains hybrid-rendered by Next. Tenant metadata is public for route discovery and branding. Published page records are not publicly queryable through Payload REST; the web renderer uses the separately configured `CMS_RENDERER_TOKEN`. Every runtime requires `PAYLOAD_SECRET` from the environment.
 
 ## Gaps
 
-Authenticated draft preview, domain mapping, CI, editor publishing E2E coverage, media hardening, theme/spacing fidelity, broader component/accessibility coverage, seed export/import, Bruno coverage, backups, and recovery remain follow-up work.
+Authenticated draft preview, domain mapping, CI, editor publishing E2E coverage, theme/spacing fidelity, broader component/accessibility coverage, seed export/import, Bruno coverage, backups, and recovery remain follow-up work.

@@ -29,6 +29,7 @@ services:
     environment:
       WEB_UPSTREAM: ${WEB_UPSTREAM:-host.docker.internal:3000}
       CMS_UPSTREAM: ${CMS_UPSTREAM:-host.docker.internal:3001}
+      S3_BUCKET: ${S3_BUCKET:-payload-media}
     ports: ["${PROXY_PORT:-8888}:8888"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

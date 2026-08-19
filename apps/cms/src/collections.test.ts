@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enforceTenantWrite } from "./collections.js";
+import { enforceTenantWrite, validateMediaUpload } from "./collections.js";
 
 describe("tenant write enforcement", () => {
   it("preserves the existing tenant for partial updates", () => {
@@ -20,5 +20,28 @@ describe("tenant write enforcement", () => {
         originalDoc: { tenant: "tenant-2" },
       }),
     ).toThrow("another tenant");
+  });
+});
+
+describe("media upload validation", () => {
+  it("accepts image and video files within the limit", () => {
+    expect(() =>
+      validateMediaUpload({ mimetype: "image/png", size: 1024 }),
+    ).not.toThrow();
+    expect(() =>
+      validateMediaUpload({ mimetype: "video/mp4", size: 25 * 1024 * 1024 }),
+    ).not.toThrow();
+  });
+
+  it("rejects other MIME types and oversized files", () => {
+    expect(() =>
+      validateMediaUpload({ mimetype: "text/plain", size: 1 }),
+    ).toThrow("image or video");
+    expect(() =>
+      validateMediaUpload({
+        mimetype: "image/png",
+        size: 25 * 1024 * 1024 + 1,
+      }),
+    ).toThrow("25 MiB");
   });
 });

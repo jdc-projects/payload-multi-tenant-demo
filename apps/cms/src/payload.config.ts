@@ -4,6 +4,7 @@ import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
 import sharp from "sharp";
 import { Media, Pages, Tenants, Users } from "./collections.js";
+import { ensureMediaBucket } from "./storage.js";
 
 const databaseURL =
   process.env.DATABASE_URL ??
@@ -71,6 +72,7 @@ export default buildConfig({
     s3Storage({
       collections: { media: true },
       bucket: process.env.S3_BUCKET ?? "payload-media",
+      acl: "public-read",
       config: {
         credentials: {
           accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "payload",
@@ -83,6 +85,7 @@ export default buildConfig({
     }),
   ],
   onInit: async (payload) => {
+    await ensureMediaBucket();
     const email = process.env.PAYLOAD_ADMIN_EMAIL;
     const password = process.env.PAYLOAD_ADMIN_PASSWORD;
     if (
