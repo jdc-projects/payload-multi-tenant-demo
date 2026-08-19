@@ -8,7 +8,7 @@ type StorageClient = {
   send: (command: CreateBucketCommand | HeadBucketCommand) => Promise<unknown>;
 };
 
-export function createStorageClient() {
+function createStorageClient() {
   const endpoint =
     process.env.S3_ENDPOINT ??
     `${process.env.S3_PROTOCOL ?? "http"}://${process.env.S3_HOST ?? "localhost"}:${process.env.S3_PORT ?? "9000"}`;

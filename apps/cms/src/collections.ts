@@ -5,7 +5,7 @@ type TenantUser = { tenant?: string | { id: string } };
 
 const authenticated = ({ req }: { req: { user?: unknown } }) =>
   Boolean(req.user);
-export const MAX_MEDIA_SIZE = 25 * 1024 * 1024;
+const MAX_MEDIA_SIZE = 25 * 1024 * 1024;
 export function validateMediaUpload(file: unknown) {
   const candidate = file as { mimetype?: unknown; size?: unknown };
   if (
