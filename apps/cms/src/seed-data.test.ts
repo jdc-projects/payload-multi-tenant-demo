@@ -85,4 +85,23 @@ describe("seed fixtures", () => {
       ),
     ).toBe(false);
   });
+
+  it("compares records with reordered object keys as unchanged", () => {
+    expect(
+      recordsChanged(
+        { slug: "home", layout: { heading: "Welcome", body: "Text" } },
+        { layout: { body: "Text", heading: "Welcome" }, slug: "home" },
+      ),
+    ).toBe(false);
+  });
+
+  it.each([
+    { nextPage: 1, docs: [1] },
+    { nextPage: 0, docs: [1] },
+    { nextPage: 2, docs: [] },
+  ])("rejects pagination without progress (%o)", async (page) => {
+    await expect(
+      readAllPages(async () => ({ ...page, hasNextPage: true })),
+    ).rejects.toThrow("Invalid pagination progress");
+  });
 });

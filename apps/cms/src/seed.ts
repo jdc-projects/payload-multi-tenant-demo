@@ -94,6 +94,7 @@ async function importTenant(
   tenant: SeedFixture["tenants"][number],
   force: boolean,
   tenantIDs: Map<string, string>,
+  transactionID?: string | number,
 ) {
   const existing = await payload.find({
     collection: "tenants",
@@ -108,6 +109,7 @@ async function importTenant(
       collection: "tenants",
       data: tenant,
       overrideAccess: true,
+      req: { transactionID },
     });
     tenantIDs.set(tenant.slug, String(created.id));
     return false;
@@ -119,6 +121,7 @@ async function importTenant(
       id: record.id,
       data: tenant,
       overrideAccess: true,
+      req: { transactionID },
     });
     return false;
   }
@@ -160,6 +163,7 @@ async function importPage(
   force: boolean,
   tenantIDs: Map<string, string>,
   mediaIDs: Map<string, string>,
+  transactionID?: string | number,
 ) {
   const slug = String(page.slug ?? "");
   const tenantSlug = page.tenant;
@@ -182,7 +186,12 @@ async function importPage(
   });
   const record = existing.docs[0];
   if (!record) {
-    await payload.create({ collection: "pages", data, overrideAccess: true });
+    await payload.create({
+      collection: "pages",
+      data,
+      overrideAccess: true,
+      req: { transactionID },
+    });
     return false;
   }
   if (force) {
@@ -191,6 +200,7 @@ async function importPage(
       id: record.id,
       data,
       overrideAccess: true,
+      req: { transactionID },
     });
     return false;
   }
@@ -225,10 +235,13 @@ async function importTenants(
   fixture: SeedFixture,
   force: boolean,
   tenantIDs: Map<string, string>,
+  transactionID?: string | number,
 ) {
   let skipped = 0;
   for (const tenant of fixture.tenants)
-    skipped += Number(await importTenant(payload, tenant, force, tenantIDs));
+    skipped += Number(
+      await importTenant(payload, tenant, force, tenantIDs, transactionID),
+    );
   return skipped;
 }
 
@@ -238,11 +251,19 @@ async function importPages(
   force: boolean,
   tenantIDs: Map<string, string>,
   mediaIDs: Map<string, string>,
+  transactionID?: string | number,
 ) {
   let skipped = 0;
   for (const page of fixture.pages)
     skipped += Number(
-      await importPage(payload, page, force, tenantIDs, mediaIDs),
+      await importPage(
+        payload,
+        page,
+        force,
+        tenantIDs,
+        mediaIDs,
+        transactionID,
+      ),
     );
   return skipped;
 }
@@ -251,18 +272,64 @@ async function importFixture(input: string, force: boolean) {
   const fixture = await readFixture(input);
   const payload = await getPayload({ config });
   const tenantIDs = new Map<string, string>();
-  const { mediaIDs, missingMedia } = await prepareMedia(payload, fixture);
-  if (missingMedia.size) {
-    await payload.db.destroy?.();
-    throw new Error(
-      `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
+  try {
+    const knownTenants = new Set(fixture.tenants.map(({ slug }) => slug));
+    const unknownTenant = fixture.pages.find(
+      (page) => !knownTenants.has(page.tenant),
     );
+    if (unknownTenant)
+      throw new Error(
+        `Fixture page references unknown tenant ${unknownTenant.tenant}`,
+      );
+    const { mediaIDs, missingMedia } = await prepareMedia(payload, fixture);
+    if (missingMedia.size)
+      throw new Error(
+        `Cannot import fixture: missing media (${[...missingMedia].join(", ")}); no records were written`,
+      );
+
+    // Payload's database transaction is shared by every local API operation.
+    // This prevents a validation or adapter error halfway through the fixture
+    // from leaving tenants/pages written without the rest of the fixture.
+    const db = payload.db as typeof payload.db & {
+      beginTransaction?: () => Promise<string | number | null>;
+      commitTransaction?: (id: string | number) => Promise<void>;
+      rollbackTransaction?: (id: string | number) => Promise<void>;
+    };
+    if (
+      !db.beginTransaction ||
+      !db.commitTransaction ||
+      !db.rollbackTransaction
+    )
+      throw new Error("Payload database does not support fixture transactions");
+    const transactionID = await db.beginTransaction();
+    if (transactionID === null)
+      throw new Error("Payload failed to start fixture transaction");
+    try {
+      const skipped =
+        (await importTenants(
+          payload,
+          fixture,
+          force,
+          tenantIDs,
+          transactionID,
+        )) +
+        (await importPages(
+          payload,
+          fixture,
+          force,
+          tenantIDs,
+          mediaIDs,
+          transactionID,
+        ));
+      await db.commitTransaction(transactionID);
+      console.log(`Imported fixture (skipped ${skipped} changed records)`);
+    } catch (error) {
+      await db.rollbackTransaction(transactionID).catch(() => undefined);
+      throw error;
+    }
+  } finally {
+    await payload.db.destroy?.();
   }
-  const skipped =
-    (await importTenants(payload, fixture, force, tenantIDs)) +
-    (await importPages(payload, fixture, force, tenantIDs, mediaIDs));
-  console.log(`Imported fixture (skipped ${skipped} changed records)`);
-  await payload.db.destroy?.();
 }
 
 async function seed() {
