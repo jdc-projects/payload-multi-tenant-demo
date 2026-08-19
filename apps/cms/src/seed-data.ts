@@ -23,6 +23,12 @@ export function normalize(value: unknown): unknown {
   );
 }
 
+export function recordsChanged(existing: unknown, fixture: unknown): boolean {
+  return (
+    JSON.stringify(normalize(existing)) !== JSON.stringify(normalize(fixture))
+  );
+}
+
 export function mediaRefs(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(mediaRefs);
   if (!value || typeof value !== "object") return value;
@@ -51,6 +57,40 @@ export function resolveMediaRefs(
   );
 }
 
+/** Return every fixture media reference nested in a value. */
+export function collectMediaRefs(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(collectMediaRefs);
+  if (!value || typeof value !== "object") return [];
+  const record = value as Record<string, unknown>;
+  const refs = typeof record.ref === "string" ? [record.ref] : [];
+  return refs.concat(
+    Object.entries(record).flatMap(([key, item]) =>
+      key === "ref" ? [] : collectMediaRefs(item),
+    ),
+  );
+}
+
+export type PaginatedResult<T> = {
+  docs: T[];
+  hasNextPage?: boolean;
+  nextPage?: number | null;
+};
+
+/** Read all pages from a Payload find operation (Payload defaults to 10, not all records). */
+export async function readAllPages<T>(
+  find: (page: number) => Promise<PaginatedResult<T>>,
+): Promise<T[]> {
+  const docs: T[] = [];
+  let page = 1;
+  do {
+    const result = await find(page);
+    docs.push(...result.docs);
+    if (!result.hasNextPage) break;
+    page = result.nextPage ?? page + 1;
+  } while (docs.length < Number.MAX_SAFE_INTEGER);
+  return docs;
+}
+
 export function fixturePath(file = "fixtures/v1.json") {
   const cmsRoot =
     path.basename(process.cwd()) === "cms"
@@ -68,5 +108,5 @@ export async function readFixture(file: string): Promise<SeedFixture> {
 
 export async function writeFixture(file: string, fixture: SeedFixture) {
   await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(`${file}\n`, `${JSON.stringify(fixture, null, 2)}\n`);
+  await fs.writeFile(file, `${JSON.stringify(fixture, null, 2)}\n`);
 }
