@@ -11,3 +11,26 @@ test("web home page renders and meets WCAG AA checks", async ({ page }) => {
     .analyze();
   expect(results.violations).toEqual([]);
 });
+
+test("tenant pages preserve hierarchy, links, and responsive layout", async ({
+  page,
+}) => {
+  await page.goto("/demo1/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore" })).toHaveAttribute(
+    "href",
+    "#",
+  );
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(page.locator("body")).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(375);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
