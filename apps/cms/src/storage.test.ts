@@ -8,9 +8,13 @@ describe("media bucket provisioning", () => {
 
     await ensureMediaBucket(client, "media-test");
 
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledTimes(3);
     expect(send.mock.calls[0]?.[0].input).toEqual({ Bucket: "media-test" });
     expect(send.mock.calls[1]?.[0].input).toEqual({ Bucket: "media-test" });
+    expect(send.mock.calls[2]?.[0].input).toMatchObject({
+      Bucket: "media-test",
+      Policy: expect.stringContaining('"Action":"s3:GetObject"'),
+    });
   });
 
   it("treats an existing bucket as an idempotent success", async () => {

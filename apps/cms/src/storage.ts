@@ -1,11 +1,14 @@
 import {
   CreateBucketCommand,
   HeadBucketCommand,
+  PutBucketPolicyCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 
 type StorageClient = {
-  send: (command: CreateBucketCommand | HeadBucketCommand) => Promise<unknown>;
+  send: (
+    command: CreateBucketCommand | HeadBucketCommand | PutBucketPolicyCommand,
+  ) => Promise<unknown>;
 };
 
 function createStorageClient() {
@@ -42,5 +45,21 @@ export async function ensureMediaBucket(
   }
 
   await client.send(new HeadBucketCommand({ Bucket: bucket }));
+  await client.send(
+    new PutBucketPolicyCommand({
+      Bucket: bucket,
+      Policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: "*",
+            Action: "s3:GetObject",
+            Resource: `arn:aws:s3:::${bucket}/*`,
+          },
+        ],
+      }),
+    }),
+  );
   return bucket;
 }
