@@ -16,7 +16,8 @@ import {
   IconTarget,
 } from "@tabler/icons-react";
 import type { CSSProperties, ReactNode } from "react";
-import { cmsUrl, type Page } from "../lib/cms";
+import { mediaURL } from "../lib/media";
+import type { Page } from "../lib/cms";
 
 export function Blocks({ blocks }: { blocks: Page["layout"] }) {
   return (
@@ -68,9 +69,9 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
           </Text>
         ) : null}
         {image?.url ? (
-          <div style={mediaFrameStyle(block.aspectRatio)}>
+          <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
             <Image
-              src={image.url}
+              src={mediaURL(image.url)}
               alt={String(block.heading)}
               radius="md"
               style={mediaContentStyle}
@@ -161,7 +162,7 @@ function ImageBlock({ block }: { block: Record<string, unknown> }) {
   const image = block.image as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
-      <div style={mediaFrameStyle(block.aspectRatio)}>
+      <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
         <Image
           src={mediaURL(image?.url)}
           alt={String(block.alt ?? "")}
@@ -182,7 +183,7 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
   const poster = block.poster as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
-      <div style={mediaFrameStyle(block.aspectRatio)}>
+      <div style={mediaFrameStyle(block.aspectRatio, block.mediaSize)}>
         <video
           controls
           poster={mediaURL(poster?.url)}
@@ -201,24 +202,27 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
   );
 }
 
-function mediaURL(value: unknown) {
-  const url = String(value ?? "");
-  if (!url || /^https?:\/\//.test(url)) return url;
-  return new URL(url, cmsUrl).toString();
-}
-
 function mediaAspectRatio(value: unknown) {
   if (value === "4:3") return "4 / 3";
   if (value === "1:1") return "1 / 1";
   return "16 / 9";
 }
 
-function mediaFrameStyle(value: unknown): CSSProperties {
+function mediaMaxWidth(value: unknown) {
+  if (value === "large") return "56rem";
+  if (value === "medium") return "45rem";
+  if (value === "narrow") return "30rem";
+  return "100%";
+}
+
+function mediaFrameStyle(aspectRatio: unknown, size: unknown): CSSProperties {
   return {
-    aspectRatio: mediaAspectRatio(value),
+    aspectRatio: mediaAspectRatio(aspectRatio),
     overflow: "hidden",
     position: "relative",
     width: "100%",
+    maxWidth: mediaMaxWidth(size),
+    marginInline: "auto",
     borderRadius: "var(--mantine-radius-md)",
   };
 }

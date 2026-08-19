@@ -12,6 +12,12 @@ const aspectRatio = {
   defaultValue: "16:9",
   options: ["16:9", "4:3", "1:1"],
 };
+const mediaSize = {
+  name: "mediaSize",
+  type: "select" as const,
+  defaultValue: "full",
+  options: ["full", "large", "medium", "narrow"],
+};
 
 const Hero: Block = {
   slug: "hero",
@@ -21,6 +27,7 @@ const Hero: Block = {
     { name: "body", type: "textarea" },
     { name: "image", type: "upload", relationTo: "media" },
     aspectRatio,
+    mediaSize,
     {
       name: "actions",
       type: "array",
@@ -53,6 +60,7 @@ const ImageBlock: Block = {
     { name: "alt", type: "text", required: true },
     { name: "caption", type: "text" },
     aspectRatio,
+    mediaSize,
     spacing,
   ],
 };
@@ -63,6 +71,7 @@ const Video: Block = {
     { name: "poster", type: "upload", relationTo: "media" },
     { name: "caption", type: "text" },
     aspectRatio,
+    mediaSize,
     spacing,
   ],
 };

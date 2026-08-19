@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Blocks } from "../../../components/blocks";
+import { LivePreviewBlocks } from "../../../components/live-preview-blocks";
 import { TenantNavigation } from "../../../components/tenant-navigation";
 import { getNavigation, getPage, getPagePaths } from "../../../lib/cms";
 import { accessibleTextColor } from "../../../lib/theme";
@@ -69,7 +69,11 @@ export default async function TenantPage({
         pages={navigation}
         currentSlug={slug.join("/")}
       />
-      <Blocks blocks={page.layout} />
+      <LivePreviewBlocks
+        blocks={page.layout}
+        key={page.updatedAt}
+        pageId={page.id}
+      />
     </main>
   );
 }
