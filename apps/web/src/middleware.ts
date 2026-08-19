@@ -7,6 +7,15 @@ const hostResolutionMode = ["domain", "subdomain"].includes(
 );
 const allowPathFallback = process.env.TENANT_ALLOW_PATH_FALLBACK === "true";
 
+function unresolvedResponse(
+  request: NextRequest,
+): NextResponse | undefined {
+  if (!hostResolutionMode && request.nextUrl.pathname === "/")
+    return NextResponse.next();
+  if (hostResolutionMode || !allowPathFallback)
+    return new NextResponse("Not Found", { status: 404 });
+}
+
 export function middleware(request: NextRequest) {
   const publicHost = request.headers.get("host") ?? undefined;
   const result = resolver.resolve({
@@ -18,11 +27,7 @@ export function middleware(request: NextRequest) {
   // a path prefix as authoritative and would otherwise allow tenant selection
   // on an untrusted host.
   if (!result) {
-    if (!hostResolutionMode && request.nextUrl.pathname === "/")
-      return NextResponse.next();
-    return hostResolutionMode || !allowPathFallback
-      ? new NextResponse("Not Found", { status: 404 })
-      : NextResponse.next();
+    return unresolvedResponse(request) ?? NextResponse.next();
   }
   if (result.strategy === "path") return NextResponse.next();
 
