@@ -3,7 +3,7 @@ import { pageBlocks } from "./blocks.js";
 
 const webURL =
   process.env.NEXT_PUBLIC_WEB_URL ??
-  `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
+  `${process.env.PROXY_PROTOCOL ?? "http"}://${process.env.PROXY_HOST ?? "localhost"}:${process.env.PROXY_PORT ?? "8888"}`;
 const revalidationSecret = process.env.REVALIDATION_SECRET;
 
 type TenantUser = { tenant?: string | { id: string } };

@@ -147,6 +147,95 @@ test("Northstar services opens its tenant and slug in live preview", async ({
   await expect(iframe).not.toBeVisible();
 });
 
+test("standalone live preview accepts updates from the Payload popup", async ({
+  page,
+}) => {
+  const login = await page.request.post("/api/users/login", {
+    data: {
+      email: process.env.PAYLOAD_ADMIN_EMAIL ?? "admin@example.com",
+      password: process.env.PAYLOAD_ADMIN_PASSWORD ?? "changemechangeme",
+    },
+  });
+  expect(login.ok()).toBe(true);
+
+  const response = await page.request.get(
+    `/api/pages?where=${encodeURIComponent(
+      JSON.stringify({
+        and: [
+          { "tenant.slug": { equals: "demo2" } },
+          { slug: { equals: "services" } },
+        ],
+      }),
+    )}&depth=2`,
+  );
+  expect(response.ok()).toBe(true);
+  const pageRecord = (await response.json()).docs[0] as {
+    id: string | number;
+    layout: Array<Record<string, unknown>>;
+  };
+  await page.goto(`/admin/collections/pages/${pageRecord.id}`);
+  await page.getByRole("button", { name: /live preview/i }).click();
+  await expect(page.locator("iframe").last()).toBeVisible();
+
+  const openPreview = page.getByTitle(/open in new window/i);
+  const popupPromise = page.waitForEvent("popup");
+  await openPreview.click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState("domcontentloaded");
+  await expect(
+    popup.getByRole("heading", { name: "Clear direction for complex work" }),
+  ).toBeVisible();
+
+  const heroIndex = pageRecord.layout.findIndex(
+    (block) => block.blockType === "hero",
+  );
+  expect(heroIndex).toBeGreaterThanOrEqual(0);
+  const popupName = "payload-preview-regression";
+  await popup.evaluate((name) => {
+    window.name = name;
+  }, popupName);
+  const postPreviewUpdate = (layout: Array<Record<string, unknown>>) =>
+    page.evaluate(
+      ({ id, layout, popupName }) => {
+        const popup = window.open("", popupName);
+        if (!popup) throw new Error("Could not access preview popup");
+        popup.postMessage(
+          {
+            type: "payload-live-preview",
+            data: { id, layout },
+          },
+          window.location.origin,
+        );
+      },
+      { id: pageRecord.id, layout, popupName },
+    );
+
+  const headingLayout = pageRecord.layout.map((block, index) =>
+    index === heroIndex
+      ? { ...block, heading: "Popup update received" }
+      : block,
+  );
+  await postPreviewUpdate(headingLayout);
+  await expect(
+    popup.getByRole("heading", { name: "Popup update received" }),
+  ).toBeVisible();
+
+  const popupFrame = popup.locator('div[style*="aspect-ratio"]').first();
+  const fullWidth = await popupFrame.evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const narrowLayout = pageRecord.layout.map((block, index) =>
+    index === heroIndex ? { ...block, mediaSize: "narrow" } : block,
+  );
+  await postPreviewUpdate(narrowLayout);
+  await expect
+    .poll(() =>
+      popupFrame.evaluate((element) => element.getBoundingClientRect().width),
+    )
+    .toBeLessThan(fullWidth);
+  await popup.close();
+});
+
 test("Acme About preview loads its image block", async ({ page }) => {
   const login = await page.request.post("/api/users/login", {
     data: {
@@ -188,4 +277,38 @@ test("Acme About preview loads its image block", async ({ page }) => {
       image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
     )
     .toBeGreaterThan(0);
+});
+
+test("full-size media fills the shared content width", async ({ page }) => {
+  const login = await page.request.post("/api/users/login", {
+    data: {
+      email: process.env.PAYLOAD_ADMIN_EMAIL ?? "admin@example.com",
+      password: process.env.PAYLOAD_ADMIN_PASSWORD ?? "changemechangeme",
+    },
+  });
+  expect(login.ok()).toBe(true);
+
+  const frameWidths: number[] = [];
+  for (const path of ["/demo1/about", "/demo3/journal"]) {
+    await page.goto(`${path}?preview=true`);
+    const frame = page.locator('div[style*="aspect-ratio"]').first();
+    await expect(frame).toBeVisible();
+    const widths = await frame.evaluate((element) => {
+      const container = element.closest(".mantine-Container-root");
+      const styles = container ? getComputedStyle(container) : undefined;
+      const horizontalPadding = styles
+        ? parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight)
+        : 0;
+      return {
+        frame: element.getBoundingClientRect().width,
+        container:
+          (container?.getBoundingClientRect().width ?? 0) - horizontalPadding,
+      };
+    });
+    expect(widths.frame).toBeGreaterThan(0);
+    expect(widths.frame).toBeCloseTo(widths.container, 0);
+    frameWidths.push(widths.frame);
+  }
+  expect(frameWidths[0]).toBeGreaterThan(1000);
+  expect(frameWidths[0]).toBeCloseTo(frameWidths[1] ?? 0, 0);
 });
