@@ -51,38 +51,70 @@ const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
   return false;
 };
 
-/** Notify the renderer after either a draft save or a publish. */
-const revalidateWebPage = async ({ doc, req }: { doc: any; req: any }) => {
-  if (!revalidationSecret) return doc;
-  let tenant = doc.tenant;
-  const tenantID =
-    typeof tenant === "string" ? tenant : (tenant?.id ?? undefined);
-  if (tenantID) {
-    try {
-      const record = await req.payload.findByID({
-        collection: "tenants",
-        id: tenantID,
-        depth: 0,
-        overrideAccess: true,
-      });
-      tenant = record.slug;
-    } catch {
-      // A failed notification must not prevent an editor from saving.
-    }
-  }
-  if (typeof tenant !== "string") tenant = tenant?.slug;
+const revalidationTimeoutMs = 5_000;
+
+type PageSnapshot = { tenant?: any; slug?: string };
+
+const resolveTenantSlug = async (tenant: any, req: any) => {
+  if (!tenant) return undefined;
+  if (typeof tenant !== "string" && typeof tenant.slug === "string")
+    return tenant.slug;
+  const tenantID = typeof tenant === "string" ? tenant : tenant.id;
+  if (!tenantID) return undefined;
   try {
-    await fetch(`${webURL}/api/revalidate`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${revalidationSecret}`,
-      },
-      body: JSON.stringify({ tenant, slug: doc.slug ?? "" }),
+    const record = await req.payload.findByID({
+      collection: "tenants",
+      id: tenantID,
+      depth: 0,
+      overrideAccess: true,
     });
+    return record.slug;
   } catch {
-    // The web process may be restarting while CMS remains available.
+    // A failed lookup must not prevent an editor from saving.
+    return typeof tenant === "string" ? tenant : undefined;
   }
+};
+
+/** Notify the renderer after either a draft save or a publish. */
+const revalidateWebPage = async ({
+  doc,
+  previousDoc,
+  req,
+}: {
+  doc: any;
+  previousDoc?: any;
+  req: any;
+}) => {
+  if (!revalidationSecret) return doc;
+
+  const snapshots: PageSnapshot[] = [doc];
+  if (previousDoc) snapshots.push(previousDoc);
+  const notifications = new Map<string, Promise<unknown>>();
+
+  await Promise.all(
+    snapshots.map(async (snapshot) => {
+      const tenant = await resolveTenantSlug(snapshot.tenant, req);
+      if (!tenant) return;
+      const slug = snapshot.slug ?? "";
+      const key = `${tenant}:${slug}`;
+      if (notifications.has(key)) return;
+      notifications.set(
+        key,
+        fetch(`${webURL}/api/revalidate`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${revalidationSecret}`,
+          },
+          body: JSON.stringify({ tenant, slug }),
+          signal: AbortSignal.timeout(revalidationTimeoutMs),
+        }).catch(() => {
+          // The web process may be restarting while CMS remains available.
+        }),
+      );
+    }),
+  );
+  await Promise.all(notifications.values());
   return doc;
 };
 
