@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Blocks } from "../../../components/blocks";
 import { getPage, getPagePaths } from "../../../lib/cms";
 import { accessibleTextColor } from "../../../lib/theme";
 import { tenantResolverFromEnv } from "../../../lib/tenant-resolver";
 
 export const dynamicParams = true;
+export const dynamic = "force-dynamic";
 export const revalidate = 60;
 export async function generateStaticParams() {
   return getPagePaths();
@@ -19,15 +19,14 @@ export async function generateMetadata({
   const { tenant, slug = [] } = await params;
   const path = `/${slug.join("/")}`;
   const page = await getPage(tenant, slug.join("/"));
-  const requestHeaders = await headers();
+  const canonicalBaseURL =
+    process.env.NEXT_PUBLIC_WEB_URL ??
+    `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
+  const canonicalURL = new URL(canonicalBaseURL);
   const resolution = tenantResolverFromEnv().resolve({
     pathname: `/${tenant}${path}`,
-    // Middleware rewrites the path but carries the verified public host along
-    // so metadata remains canonical to the domain the visitor requested.
-    host:
-      requestHeaders.get("x-tenant-public-host") ??
-      requestHeaders.get("host") ??
-      undefined,
+    host: canonicalURL.host,
+    protocol: canonicalURL.protocol.replace(":", ""),
   });
   return {
     title: page?.title,
