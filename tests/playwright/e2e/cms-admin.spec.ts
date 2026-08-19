@@ -143,6 +143,8 @@ test("Northstar services opens its tenant and slug in live preview", async ({
   await expect(
     preview.getByRole("heading", { name: "Clear direction for complex work" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: /live preview/i }).click();
+  await expect(iframe).not.toBeVisible();
 });
 
 test("Acme About preview loads its image block", async ({ page }) => {
