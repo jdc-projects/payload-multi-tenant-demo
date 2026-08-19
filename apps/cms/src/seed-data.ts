@@ -43,7 +43,7 @@ export function mediaRefs(value: unknown): unknown {
 
 export function resolveMediaRefs(
   value: unknown,
-  mediaIDs: Map<string, string>,
+  mediaIDs: Map<string, string | number>,
 ): unknown {
   if (Array.isArray(value))
     return value.map((item) => resolveMediaRefs(item, mediaIDs));
