@@ -63,14 +63,18 @@ function payloadMock(
       );
       return { docs: result.slice(0, 1) };
     },
-    create: async ({ collection, data, req }: any) => {
+    create: async ({ collection, data, file, req }: any) => {
       if (
         options.failOnPage &&
         collection === "pages" &&
         data.slug === `page-${options.failOnPage}`
       )
         throw new Error("mid-fixture failure");
-      const record = { ...data, id: String(nextID++) };
+      const record = {
+        ...data,
+        ...(file ? { filename: file.name, mimeType: file.mimetype } : {}),
+        id: String(nextID++),
+      };
       transactionDocs?.[collection].push(record);
       return record;
     },
@@ -134,5 +138,53 @@ describe("fixture import transactions", () => {
       message: expect.stringContaining("rollback failed: rollback outage"),
       cause: expect.objectContaining({ message: "mid-fixture failure" }),
     });
+  });
+
+  it("uploads checked-in media once and reuses it on repeat imports", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "seed-media-"));
+    const assets = path.join(directory, "assets");
+    await fs.mkdir(assets);
+    await fs.writeFile(path.join(assets, "demo.svg"), "<svg />");
+    const file = path.join(directory, "fixture.json");
+    await fs.writeFile(
+      file,
+      JSON.stringify({
+        version: 1,
+        tenants: [tenant],
+        pages: [
+          {
+            ...page("home"),
+            layout: [
+              {
+                blockType: "image",
+                image: { ref: "demo.svg" },
+                alt: "Demo",
+              },
+            ],
+          },
+        ],
+        media: [
+          {
+            ref: "demo.svg",
+            source: "assets/demo.svg",
+            alt: "Demo",
+          },
+        ],
+      }),
+    );
+    const first = payloadMock();
+    await importFixture(file, false, first.payload);
+    expect(first.docs.media).toHaveLength(1);
+    expect(first.docs.media[0]).toMatchObject({
+      filename: "demo.svg",
+      mimeType: "image/svg+xml",
+    });
+
+    const second = payloadMock();
+    second.docs.media.push(...first.docs.media);
+    second.docs.tenants.push(...first.docs.tenants);
+    second.docs.pages.push(...first.docs.pages);
+    await importFixture(file, false, second.payload);
+    expect(second.docs.media).toHaveLength(1);
   });
 });

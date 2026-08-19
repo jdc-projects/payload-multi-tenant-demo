@@ -9,7 +9,12 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconCircleCheck } from "@tabler/icons-react";
+import {
+  IconCircleCheck,
+  IconRocket,
+  IconSparkles,
+  IconTarget,
+} from "@tabler/icons-react";
 import type { CSSProperties, ReactNode } from "react";
 import type { Page } from "../lib/cms";
 
@@ -45,6 +50,7 @@ function Block({ block }: { block: Record<string, unknown> }) {
 function HeroBlock({ block }: { block: Record<string, unknown> }) {
   const actions = block.actions as
     Array<{ label: string; href: string }> | undefined;
+  const image = block.image as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "xl")}>
       <Stack gap="lg">
@@ -60,6 +66,16 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
           <Text size="xl" maw={650}>
             {String(block.body)}
           </Text>
+        ) : null}
+        {image?.url ? (
+          <div style={mediaFrameStyle(block.aspectRatio)}>
+            <Image
+              src={image.url}
+              alt={String(block.heading)}
+              radius="md"
+              style={mediaContentStyle}
+            />
+          </div>
         ) : null}
         {actions?.length ? (
           <Group wrap="wrap">
@@ -77,22 +93,32 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
 
 function FeatureGridBlock({ block }: { block: Record<string, unknown> }) {
   const features = block.features as
-    Array<{ title: string; body?: string }> | undefined;
+    Array<{ title: string; body?: string; icon?: string }> | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
       {block.heading ? <Title order={2}>{String(block.heading)}</Title> : null}
       <SimpleGrid cols={{ base: 1, sm: 2 }} mt="xl">
-        {features?.map((feature) => (
-          <Card withBorder padding="xl" key={feature.title}>
-            <IconCircleCheck aria-hidden size={24} />
-            <Title order={3}>{feature.title}</Title>
-            {feature.body ? <Text mt="sm">{feature.body}</Text> : null}
-          </Card>
-        ))}
+        {features?.map((feature) => {
+          const FeatureIcon =
+            featureIcons[feature.icon ?? ""] ?? IconCircleCheck;
+          return (
+            <Card withBorder padding="xl" key={feature.title}>
+              <FeatureIcon aria-hidden size={24} />
+              <Title order={3}>{feature.title}</Title>
+              {feature.body ? <Text mt="sm">{feature.body}</Text> : null}
+            </Card>
+          );
+        })}
       </SimpleGrid>
     </Container>
   );
 }
+
+const featureIcons: Record<string, typeof IconCircleCheck> = {
+  rocket: IconRocket,
+  sparkles: IconSparkles,
+  target: IconTarget,
+};
 
 function CallToActionBlock({ block }: { block: Record<string, unknown> }) {
   return (
@@ -134,10 +160,13 @@ function TenantButton({
 function ImageBlock({ block }: { block: Record<string, unknown> }) {
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
-      <Image
-        src={String((block.image as { url?: string })?.url ?? "")}
-        alt={String(block.alt ?? "")}
-      />
+      <div style={mediaFrameStyle(block.aspectRatio)}>
+        <Image
+          src={String((block.image as { url?: string })?.url ?? "")}
+          alt={String(block.alt ?? "")}
+          style={mediaContentStyle}
+        />
+      </div>
       {block.caption ? (
         <Text size="sm" mt="sm">
           {String(block.caption)}
@@ -152,18 +181,16 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
   const poster = block.poster as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
-      <video
-        controls
-        poster={poster?.url}
-        aria-label={String(block.caption || "Video")}
-        style={{
-          width: "100%",
-          display: "block",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
-      >
-        <source src={video?.url} />
-      </video>
+      <div style={mediaFrameStyle(block.aspectRatio)}>
+        <video
+          controls
+          poster={poster?.url}
+          aria-label={String(block.caption || "Video")}
+          style={mediaContentStyle}
+        >
+          <source src={video?.url} />
+        </video>
+      </div>
       {block.caption ? (
         <Text size="sm" mt="sm">
           {String(block.caption)}
@@ -172,6 +199,31 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
     </Container>
   );
 }
+
+function mediaAspectRatio(value: unknown) {
+  if (value === "4:3") return "4 / 3";
+  if (value === "1:1") return "1 / 1";
+  return "16 / 9";
+}
+
+function mediaFrameStyle(value: unknown): CSSProperties {
+  return {
+    aspectRatio: mediaAspectRatio(value),
+    overflow: "hidden",
+    position: "relative",
+    width: "100%",
+    borderRadius: "var(--mantine-radius-md)",
+  };
+}
+
+const mediaContentStyle: CSSProperties = {
+  display: "block",
+  height: "100%",
+  inset: 0,
+  position: "absolute",
+  width: "100%",
+  objectFit: "cover",
+};
 
 function RichTextBlock({ block }: { block: Record<string, unknown> }) {
   return (

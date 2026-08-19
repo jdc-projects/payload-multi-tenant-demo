@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Abstract studio landscape</title>
+  <desc id="desc">A warm abstract landscape made from geometric shapes.</desc>
+  <rect width="1200" height="675" fill="#f3e8ff"/>
+  <circle cx="860" cy="180" r="130" fill="#c084fc"/>
+  <path d="M0 540 300 260l190 180 190-220 520 455H0Z" fill="#7e22ce"/>
+  <path d="m0 590 230-180 170 120 160-130 360 275H0Z" fill="#4c1d95" opacity=".9"/>
+</svg>

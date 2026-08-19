@@ -6,6 +6,12 @@ const spacing = {
   defaultValue: "md",
   options: ["none", "sm", "md", "lg"],
 };
+const aspectRatio = {
+  name: "aspectRatio",
+  type: "select" as const,
+  defaultValue: "16:9",
+  options: ["16:9", "4:3", "1:1"],
+};
 
 const Hero: Block = {
   slug: "hero",
@@ -14,6 +20,7 @@ const Hero: Block = {
     { name: "heading", type: "text", required: true },
     { name: "body", type: "textarea" },
     { name: "image", type: "upload", relationTo: "media" },
+    aspectRatio,
     {
       name: "actions",
       type: "array",
@@ -45,6 +52,7 @@ const ImageBlock: Block = {
     { name: "image", type: "upload", relationTo: "media", required: true },
     { name: "alt", type: "text", required: true },
     { name: "caption", type: "text" },
+    aspectRatio,
     spacing,
   ],
 };
@@ -54,6 +62,7 @@ const Video: Block = {
     { name: "video", type: "upload", relationTo: "media", required: true },
     { name: "poster", type: "upload", relationTo: "media" },
     { name: "caption", type: "text" },
+    aspectRatio,
     spacing,
   ],
 };

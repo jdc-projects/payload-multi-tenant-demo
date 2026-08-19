@@ -107,6 +107,14 @@
           "spacing": "lg"
         },
         {
+          "blockType": "image",
+          "image": { "ref": "studio-mark.svg" },
+          "alt": "Abstract studio landscape",
+          "caption": "A visual identity shaped from simple forms.",
+          "aspectRatio": "16:9",
+          "spacing": "md"
+        },
+        {
           "blockType": "callToAction",
           "heading": "Start a conversation",
           "body": "Bring your next launch into focus.",
@@ -157,6 +165,8 @@
           "eyebrow": "What we do",
           "heading": "Clear direction for complex work",
           "body": "Northstar turns strategy into a practical path forward.",
+          "image": { "ref": "studio-mark.svg" },
+          "aspectRatio": "16:9",
           "actions": [{ "label": "See the approach", "href": "#approach" }],
           "spacing": "md"
         },
@@ -166,14 +176,17 @@
           "features": [
             {
               "title": "Strategy",
+              "icon": "target",
               "body": "Find the signal in a crowded market."
             },
             {
               "title": "Design",
+              "icon": "sparkles",
               "body": "Turn the signal into a useful experience."
             },
             {
               "title": "Delivery",
+              "icon": "rocket",
               "body": "Move from idea to launch with confidence."
             }
           ],
@@ -322,6 +335,14 @@
           "spacing": "lg"
         },
         {
+          "blockType": "video",
+          "video": { "ref": "field-notes.mp4" },
+          "poster": { "ref": "studio-mark.svg" },
+          "caption": "Flowers moving in a field.",
+          "aspectRatio": "16:9",
+          "spacing": "md"
+        },
+        {
           "blockType": "callToAction",
           "heading": "Read the latest note",
           "body": "The best stories are still being gathered.",
@@ -332,5 +353,16 @@
       ]
     }
   ],
-  "media": []
+  "media": [
+    {
+      "ref": "studio-mark.svg",
+      "source": "assets/studio-mark.svg",
+      "alt": "Abstract studio landscape"
+    },
+    {
+      "ref": "field-notes.mp4",
+      "source": "assets/field-notes.mp4",
+      "alt": "Flowers moving in a field"
+    }
+  ]
 }

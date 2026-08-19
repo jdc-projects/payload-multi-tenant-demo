@@ -1,4 +1,5 @@
 import { loadRootEnv } from "../../../scripts/env.js";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { getPayload } from "payload";
@@ -65,9 +66,21 @@ async function exportFixture(output: string) {
       overrideAccess: true,
     }),
   );
-  const media = mediaDocs.map((item) =>
-    Object.assign({}, normalize(item), { ref: String(item.filename) }),
-  ) as SeedFixture["media"];
+  const media = await Promise.all(
+    mediaDocs.map(async (item) => {
+      const value = Object.assign({}, normalize(item), {
+        ref: String(item.filename),
+      }) as SeedFixture["media"][number];
+      const source = path.resolve(path.dirname(output), "assets", value.ref);
+      try {
+        await fs.access(source);
+        value.source = `assets/${value.ref}`;
+      } catch {
+        // User-uploaded media has no checked-in source asset.
+      }
+      return value;
+    }),
+  );
   await writeFixture(output, { version: 1, tenants, pages, media });
   console.log(
     `Exported ${tenants.length} tenants, ${pages.length} pages, ${media.length} media refs to ${output}`,
@@ -150,11 +163,13 @@ async function importFixtureRecords(
   force: boolean,
   tenantIDs: Map<string, string | number>,
   transactionID: TransactionID,
+  fixtureDirectory: string,
 ) {
   const { mediaIDs, missingMedia } = await prepareMedia(
     payload,
     fixture,
     transactionID,
+    fixtureDirectory,
   );
   if (missingMedia.size)
     throw new Error(
@@ -224,6 +239,7 @@ async function importMedia(
   media: SeedFixture["media"][number],
   mediaIDs: Map<string, string | number>,
   transactionID: string | number,
+  fixtureDirectory: string,
 ): Promise<boolean> {
   const existing = await payload.find({
     collection: "media",
@@ -236,6 +252,38 @@ async function importMedia(
   const record = existing.docs[0];
   if (record) {
     mediaIDs.set(media.ref, record.id);
+    return true;
+  }
+  if (typeof media.source === "string") {
+    const data = await fs.readFile(
+      path.resolve(fixtureDirectory, media.source),
+    );
+    const extension = path.extname(media.ref).toLowerCase();
+    const mimetype = {
+      ".gif": "image/gif",
+      ".jpeg": "image/jpeg",
+      ".jpg": "image/jpeg",
+      ".mp4": "video/mp4",
+      ".png": "image/png",
+      ".svg": "image/svg+xml",
+      ".webm": "video/webm",
+      ".webp": "image/webp",
+    }[extension];
+    if (!mimetype)
+      throw new Error(`Unsupported seeded media type: ${media.ref}`);
+    const created = await payload.create({
+      collection: "media",
+      data: { alt: media.alt ?? "" },
+      file: {
+        data,
+        mimetype,
+        name: media.ref,
+        size: data.length,
+      },
+      overrideAccess: true,
+      req: { transactionID },
+    });
+    mediaIDs.set(media.ref, created.id);
     return true;
   }
   console.warn(
@@ -305,6 +353,7 @@ async function prepareMedia(
   payload: PayloadClient,
   fixture: SeedFixture,
   transactionID: string | number,
+  fixtureDirectory: string,
 ): Promise<{
   mediaIDs: Map<string, string | number>;
   missingMedia: Set<string>;
@@ -312,7 +361,15 @@ async function prepareMedia(
   const mediaIDs = new Map<string, string | number>();
   const missingMedia = new Set<string>();
   for (const media of fixture.media) {
-    if (!(await importMedia(payload, media, mediaIDs, transactionID)))
+    if (
+      !(await importMedia(
+        payload,
+        media,
+        mediaIDs,
+        transactionID,
+        fixtureDirectory,
+      ))
+    )
       missingMedia.add(media.ref);
   }
   for (const page of fixture.pages) {
@@ -377,7 +434,14 @@ export async function importFixture(
     await runFixtureTransaction(
       getTransactionDatabase(payload),
       (transactionID) =>
-        importFixtureRecords(payload, fixture, force, tenantIDs, transactionID),
+        importFixtureRecords(
+          payload,
+          fixture,
+          force,
+          tenantIDs,
+          transactionID,
+          path.dirname(input),
+        ),
     );
   } finally {
     if (!providedPayload) await payload.db.destroy?.();
@@ -388,6 +452,7 @@ async function seedRecords(
   payload: PayloadClient,
   transactionID: TransactionID,
   force: boolean,
+  fixtureDirectory: string,
 ) {
   const fixture = await readFixture(fixturePath());
   validateFixtureTenants(fixture);
@@ -397,6 +462,7 @@ async function seedRecords(
     force,
     new Map<string, string | number>(),
     transactionID,
+    fixtureDirectory,
   );
   return fixture.tenants.length;
 }
@@ -408,7 +474,12 @@ async function seed(force: boolean) {
     await runFixtureTransaction(
       getTransactionDatabase(payload),
       async (transactionID) => {
-        tenantCount = await seedRecords(payload, transactionID, force);
+        tenantCount = await seedRecords(
+          payload,
+          transactionID,
+          force,
+          path.dirname(fixturePath()),
+        );
       },
     );
     console.log(`Seeded ${tenantCount} tenants`);
