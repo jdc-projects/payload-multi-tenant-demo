@@ -204,7 +204,7 @@ function cleanup() {
     killProcessTree(child.pid);
   }
   normalizeNextEnvFiles();
-  removeNextDistDirs(composeProject);
+  if (mode !== "build") removeNextDistDirs(composeProject);
   try {
     execFileSync(
       "docker",

@@ -18,12 +18,44 @@ const payloadSecret = process.env.PAYLOAD_SECRET;
 if (!payloadSecret)
   throw new Error("PAYLOAD_SECRET must be configured in the environment.");
 
+type TenantPreview = { tenant: string; slug: string };
+const previewProtocol = () => process.env.WEB_PROTOCOL ?? "http";
+const tenantDomains = (): Record<string, string> => {
+  try {
+    return JSON.parse(process.env.TENANT_DOMAIN_MAP ?? "{}") as Record<
+      string,
+      string
+    >;
+  } catch {
+    return {};
+  }
+};
+const domainPreviewURL = ({ tenant, slug }: TenantPreview) => {
+  const configured = tenantDomains()[tenant];
+  if (!configured) return null;
+  const domain = configured.includes("://")
+    ? configured
+    : `${previewProtocol()}://${configured}`;
+  return `${domain.replace(/\/$/, "")}/${slug}`;
+};
+const tenantPreviewURL = ({ tenant, slug }: TenantPreview) => {
+  const strategy = process.env.TENANT_RESOLUTION_STRATEGY ?? "path";
+  if (strategy === "domain")
+    return domainPreviewURL({ tenant, slug }) ?? `${webURL}/${tenant}/${slug}`;
+  if (strategy === "subdomain" && process.env.TENANT_BASE_DOMAIN)
+    return `${previewProtocol()}://${tenant}.${process.env.TENANT_BASE_DOMAIN}/${slug}`;
+  return `${webURL}/${tenant}/${slug}`;
+};
+
 export default buildConfig({
   admin: {
     user: "users",
     livePreview: {
       url: ({ data }) =>
-        `${webURL}/${data?.tenant?.slug ?? "demo1"}/${data?.slug ?? ""}`,
+        tenantPreviewURL({
+          tenant: data?.tenant?.slug ?? "demo1",
+          slug: data?.slug ?? "",
+        }),
     },
   },
   collections: [Users, Tenants, Pages, Media],
