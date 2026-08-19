@@ -27,6 +27,16 @@ are retained.
 
 `npm run build` is a standalone artifact build. It does not start Docker, require a running database or object store, or seed content. `npm run build:managed` is the explicit managed alternative: it starts isolated Docker dependencies, builds and seeds the CMS, builds the web artifact, and removes the stack and generated directories on completion.
 
+To run the built applications through the local Caddy entrypoint, run:
+
+```sh
+npm run build
+npm run seed
+npm run start
+```
+
+`npm run start` starts the development Docker dependencies and Caddy, then runs the CMS and web production servers. It expects the applications to have already been built; use `Ctrl-C` to stop the host applications, then run `npx tsx scripts/infra.ts down` to stop the Docker dependencies.
+
 `npm run test:playwright`, `npm run test:e2e`, and `npm run test:artillery` each use the same managed lifecycle automatically. They select isolated ports unless `TEST_*` overrides are supplied.
 
 ## Seed fixtures
