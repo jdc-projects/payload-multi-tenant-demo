@@ -18,6 +18,8 @@ export function middleware(request: NextRequest) {
   // a path prefix as authoritative and would otherwise allow tenant selection
   // on an untrusted host.
   if (!result) {
+    if (!hostResolutionMode && request.nextUrl.pathname === "/")
+      return NextResponse.next();
     return hostResolutionMode || !allowPathFallback
       ? new NextResponse("Not Found", { status: 404 })
       : NextResponse.next();
