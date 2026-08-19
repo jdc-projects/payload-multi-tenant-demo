@@ -54,3 +54,29 @@ test("tenant hero media loads from the CMS", async ({ page }) => {
     )
     .toBeGreaterThan(0);
 });
+
+test("live preview applies incoming unsaved layout changes", async ({
+  page,
+}) => {
+  await page.goto("/demo1/");
+  await page.evaluate(() => {
+    window.postMessage(
+      {
+        type: "payload-live-preview",
+        data: {
+          layout: [
+            {
+              blockType: "hero",
+              heading: "Unsaved preview title",
+              body: "This change has not been saved.",
+            },
+          ],
+        },
+      },
+      "*",
+    );
+  });
+  await expect(
+    page.getByRole("heading", { name: "Unsaved preview title" }),
+  ).toBeVisible();
+});

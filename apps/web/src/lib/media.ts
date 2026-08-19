@@ -1,4 +1,4 @@
-import { cmsUrl } from "./cms";
+import { cmsUrl } from "./cms-url";
 
 export function mediaURL(value: unknown) {
   const url = String(value ?? "");

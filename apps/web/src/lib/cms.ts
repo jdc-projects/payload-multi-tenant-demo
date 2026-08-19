@@ -1,14 +1,12 @@
 import { cookies } from "next/headers";
-
-export const cmsUrl =
-  process.env.NEXT_PUBLIC_CMS_URL ??
-  `${process.env.CMS_PROTOCOL ?? "http"}://${process.env.CMS_HOST ?? "localhost"}:${process.env.CMS_PORT ?? "3001"}`;
+import { cmsUrl } from "./cms-url";
 const cmsRendererToken = process.env.CMS_RENDERER_TOKEN;
 const cmsHeaders = cmsRendererToken
   ? { "x-cms-renderer-token": cmsRendererToken }
   : undefined;
 
 export type Page = {
+  updatedAt?: string;
   title: string;
   slug: string;
   tenant: {
