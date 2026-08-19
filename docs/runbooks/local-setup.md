@@ -31,11 +31,12 @@ To run the built applications through the local Caddy entrypoint, run:
 
 ```sh
 npm run build
+npm run start:infra
 npm run seed
 npm run start
 ```
 
-`npm run start` starts the development Docker dependencies and Caddy, then runs the CMS and web production servers. It expects the applications to have already been built; use `Ctrl-C` to stop the host applications, then run `npx tsx scripts/infra.ts down` to stop the Docker dependencies.
+`npm run start:infra` starts PostgreSQL, RustFS, and Caddy and returns once they are healthy. `npm run start` starts the CMS and web production servers; it also idempotently ensures the infrastructure is running. Keep the infrastructure running while seeding and starting the applications. Use `Ctrl-C` to stop the host applications, then run `npx tsx scripts/infra.ts down` to stop the Docker dependencies.
 
 `npm run test:playwright`, `npm run test:e2e`, and `npm run test:artillery` each use the same managed lifecycle automatically. They select isolated ports unless `TEST_*` overrides are supplied.
 
