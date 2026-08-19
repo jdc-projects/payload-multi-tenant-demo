@@ -16,7 +16,7 @@ import {
   IconTarget,
 } from "@tabler/icons-react";
 import type { CSSProperties, ReactNode } from "react";
-import type { Page } from "../lib/cms";
+import { cmsUrl, type Page } from "../lib/cms";
 
 export function Blocks({ blocks }: { blocks: Page["layout"] }) {
   return (
@@ -158,11 +158,12 @@ function TenantButton({
 }
 
 function ImageBlock({ block }: { block: Record<string, unknown> }) {
+  const image = block.image as { url?: string } | undefined;
   return (
     <Container size="lg" py={spacingValue(block.spacing, "lg")}>
       <div style={mediaFrameStyle(block.aspectRatio)}>
         <Image
-          src={String((block.image as { url?: string })?.url ?? "")}
+          src={mediaURL(image?.url)}
           alt={String(block.alt ?? "")}
           style={mediaContentStyle}
         />
@@ -184,11 +185,11 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
       <div style={mediaFrameStyle(block.aspectRatio)}>
         <video
           controls
-          poster={poster?.url}
+          poster={mediaURL(poster?.url)}
           aria-label={String(block.caption || "Video")}
           style={mediaContentStyle}
         >
-          <source src={video?.url} />
+          <source src={mediaURL(video?.url)} />
         </video>
       </div>
       {block.caption ? (
@@ -198,6 +199,12 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
       ) : null}
     </Container>
   );
+}
+
+function mediaURL(value: unknown) {
+  const url = String(value ?? "");
+  if (!url || /^https?:\/\//.test(url)) return url;
+  return new URL(url, cmsUrl).toString();
 }
 
 function mediaAspectRatio(value: unknown) {
