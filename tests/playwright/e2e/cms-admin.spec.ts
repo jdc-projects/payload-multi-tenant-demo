@@ -186,28 +186,36 @@ test("standalone live preview accepts updates from the Payload popup", async ({
     popup.getByRole("heading", { name: "Clear direction for complex work" }),
   ).toBeVisible();
 
-  const hero = pageRecord.layout.find((block) => block.blockType === "hero");
-  expect(hero).toBeTruthy();
-  await popup.evaluate(
-    ({ id, layout }) => {
-      const nextLayout = layout.map((block) =>
-        block === layout[0]
-          ? { ...block, heading: "Popup update received" }
-          : block,
-      );
-      window.dispatchEvent(
-        new MessageEvent("message", {
-          data: {
-            type: "payload-live-preview",
-            data: { id, layout: nextLayout },
-          },
-          origin: window.location.origin,
-          source: window.opener,
-        }),
-      );
-    },
-    { id: pageRecord.id, layout: pageRecord.layout },
+  const heroIndex = pageRecord.layout.findIndex(
+    (block) => block.blockType === "hero",
   );
+  expect(heroIndex).toBeGreaterThanOrEqual(0);
+  const popupName = "payload-preview-regression";
+  await popup.evaluate((name) => {
+    window.name = name;
+  }, popupName);
+  const postPreviewUpdate = (layout: Array<Record<string, unknown>>) =>
+    page.evaluate(
+      ({ id, layout, popupName }) => {
+        const popup = window.open("", popupName);
+        if (!popup) throw new Error("Could not access preview popup");
+        popup.postMessage(
+          {
+            type: "payload-live-preview",
+            data: { id, layout },
+          },
+          window.location.origin,
+        );
+      },
+      { id: pageRecord.id, layout, popupName },
+    );
+
+  const headingLayout = pageRecord.layout.map((block, index) =>
+    index === heroIndex
+      ? { ...block, heading: "Popup update received" }
+      : block,
+  );
+  await postPreviewUpdate(headingLayout);
   await expect(
     popup.getByRole("heading", { name: "Popup update received" }),
   ).toBeVisible();
@@ -216,24 +224,10 @@ test("standalone live preview accepts updates from the Payload popup", async ({
   const fullWidth = await popupFrame.evaluate(
     (element) => element.getBoundingClientRect().width,
   );
-  await popup.evaluate(
-    ({ id, layout }) => {
-      const nextLayout = layout.map((block) =>
-        block === layout[0] ? { ...block, mediaSize: "narrow" } : block,
-      );
-      window.dispatchEvent(
-        new MessageEvent("message", {
-          data: {
-            type: "payload-live-preview",
-            data: { id, layout: nextLayout },
-          },
-          origin: window.location.origin,
-          source: window.opener,
-        }),
-      );
-    },
-    { id: pageRecord.id, layout: pageRecord.layout },
+  const narrowLayout = pageRecord.layout.map((block, index) =>
+    index === heroIndex ? { ...block, mediaSize: "narrow" } : block,
   );
+  await postPreviewUpdate(narrowLayout);
   await expect
     .poll(() =>
       popupFrame.evaluate((element) => element.getBoundingClientRect().width),
