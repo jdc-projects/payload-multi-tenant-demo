@@ -110,6 +110,10 @@ test("Northstar services opens its tenant and slug in live preview", async ({
     name: "Clear direction for complex work",
   });
   await expect(image).toBeVisible();
+  const imageSrc = await image.getAttribute("src");
+  expect(imageSrc).toMatch(/\/media\/studio-mark\.svg$/);
+  const imageResponse = await page.request.get(imageSrc!);
+  expect(imageResponse.ok()).toBe(true);
   await expect
     .poll(() =>
       image.evaluate((element) => (element as HTMLImageElement).naturalWidth),

@@ -21,7 +21,7 @@ const s3Endpoint =
   `${process.env.S3_PROTOCOL ?? "http"}://${process.env.S3_HOST ?? "localhost"}:${process.env.S3_PORT ?? "9000"}`;
 const webURL =
   process.env.NEXT_PUBLIC_WEB_URL ??
-  `${process.env.WEB_PROTOCOL ?? "http"}://${process.env.WEB_HOST ?? "localhost"}:${process.env.WEB_PORT ?? "3000"}`;
+  `${process.env.PROXY_PROTOCOL ?? "http"}://${process.env.PROXY_HOST ?? "localhost"}:${process.env.PROXY_PORT ?? "8888"}`;
 const payloadSecret = process.env.PAYLOAD_SECRET;
 if (!payloadSecret)
   throw new Error("PAYLOAD_SECRET must be configured in the environment.");
