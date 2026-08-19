@@ -16,7 +16,8 @@ import {
   IconTarget,
 } from "@tabler/icons-react";
 import type { CSSProperties, ReactNode } from "react";
-import { cmsUrl, type Page } from "../lib/cms";
+import { mediaURL } from "../lib/media";
+import type { Page } from "../lib/cms";
 
 export function Blocks({ blocks }: { blocks: Page["layout"] }) {
   return (
@@ -70,7 +71,7 @@ function HeroBlock({ block }: { block: Record<string, unknown> }) {
         {image?.url ? (
           <div style={mediaFrameStyle(block.aspectRatio)}>
             <Image
-              src={image.url}
+              src={mediaURL(image.url)}
               alt={String(block.heading)}
               radius="md"
               style={mediaContentStyle}
@@ -199,12 +200,6 @@ function VideoBlock({ block }: { block: Record<string, unknown> }) {
       ) : null}
     </Container>
   );
-}
-
-function mediaURL(value: unknown) {
-  const url = String(value ?? "");
-  if (!url || /^https?:\/\//.test(url)) return url;
-  return new URL(url, cmsUrl).toString();
 }
 
 function mediaAspectRatio(value: unknown) {

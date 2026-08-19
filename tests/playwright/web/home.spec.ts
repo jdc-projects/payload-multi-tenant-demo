@@ -41,3 +41,16 @@ test("tenant pages preserve hierarchy, links, and responsive layout", async ({
     .analyze();
   expect(results.violations).toEqual([]);
 });
+
+test("tenant hero media loads from the CMS", async ({ page }) => {
+  await page.goto("/demo2/services/");
+  const image = page.getByRole("img", {
+    name: "Clear direction for complex work",
+  });
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+});
