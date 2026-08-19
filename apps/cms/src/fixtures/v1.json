@@ -62,23 +62,46 @@
                 {
                   "type": "heading",
                   "tag": "h2",
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "version": 1,
                   "children": [
                     {
+                      "detail": 0,
+                      "format": 0,
+                      "mode": "normal",
+                      "style": "",
+                      "text": "A small studio with a broad brief",
                       "type": "text",
-                      "text": "A small studio with a broad brief"
+                      "version": 1
                     }
                   ]
                 },
                 {
                   "type": "paragraph",
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "version": 1,
                   "children": [
                     {
+                      "detail": 0,
+                      "format": 0,
+                      "mode": "normal",
+                      "style": "",
+                      "text": "Acme Studio uses the website builder to shape a distinct editorial voice for every tenant.",
                       "type": "text",
-                      "text": "Acme Studio uses the website builder to shape a distinct editorial voice for every tenant."
+                      "version": 1
                     }
                   ]
                 }
-              ]
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "type": "root",
+              "version": 1
             }
           },
           "spacing": "lg"
@@ -202,43 +225,98 @@
                 {
                   "type": "heading",
                   "tag": "h2",
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "version": 1,
                   "children": [
-                    { "type": "text", "text": "Notes from the field" }
+                    {
+                      "detail": 0,
+                      "format": 0,
+                      "mode": "normal",
+                      "style": "",
+                      "text": "Notes from the field",
+                      "type": "text",
+                      "version": 1
+                    }
                   ]
                 },
                 {
                   "type": "paragraph",
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "version": 1,
                   "children": [
                     {
+                      "detail": 0,
+                      "format": 0,
+                      "mode": "normal",
+                      "style": "",
+                      "text": "A living collection of observations, experiments, and useful details.",
                       "type": "text",
-                      "text": "A living collection of observations, experiments, and useful details."
+                      "version": 1
                     }
                   ]
                 },
                 {
                   "type": "list",
+                  "direction": null,
+                  "format": "",
+                  "indent": 0,
+                  "listType": "bullet",
+                  "start": 1,
+                  "tag": "ul",
+                  "version": 1,
                   "children": [
                     {
                       "type": "listitem",
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "value": 1,
+                      "checked": null,
+                      "version": 1,
                       "children": [
                         {
+                          "detail": 0,
+                          "format": 0,
+                          "mode": "normal",
+                          "style": "",
+                          "text": "Notice what others overlook",
                           "type": "text",
-                          "text": "Notice what others overlook"
+                          "version": 1
                         }
                       ]
                     },
                     {
                       "type": "listitem",
+                      "direction": null,
+                      "format": "",
+                      "indent": 0,
+                      "value": 2,
+                      "checked": null,
+                      "version": 1,
                       "children": [
                         {
+                          "detail": 0,
+                          "format": 0,
+                          "mode": "normal",
+                          "style": "",
+                          "text": "Make room for the unexpected",
                           "type": "text",
-                          "text": "Make room for the unexpected"
+                          "version": 1
                         }
                       ]
                     }
                   ]
                 }
-              ]
+              ],
+              "direction": null,
+              "format": "",
+              "indent": 0,
+              "type": "root",
+              "version": 1
             }
           },
           "spacing": "lg"

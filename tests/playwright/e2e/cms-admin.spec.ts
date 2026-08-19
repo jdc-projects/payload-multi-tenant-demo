@@ -39,3 +39,34 @@ test("public page API access is not exposed", async ({ request }) => {
   });
   expect(rendererResponse.ok()).toBe(true);
 });
+
+test("seeded Rich Text pages open in the CMS editor", async ({ page }) => {
+  const login = await page.request.post("/api/users/login", {
+    data: {
+      email: process.env.PAYLOAD_ADMIN_EMAIL ?? "admin@example.com",
+      password: process.env.PAYLOAD_ADMIN_PASSWORD ?? "changemechangeme",
+    },
+  });
+  expect(login.ok()).toBe(true);
+
+  const pagesResponse = await page.request.get(
+    `/api/pages?where=${encodeURIComponent(
+      JSON.stringify({
+        or: [{ slug: { equals: "about" } }, { slug: { equals: "journal" } }],
+      }),
+    )}&limit=10`,
+  );
+  expect(pagesResponse.ok()).toBe(true);
+  const pages = (await pagesResponse.json()) as {
+    docs: Array<{ id: string | number; slug: string }>;
+  };
+  expect(pages.docs.map(({ slug }) => slug).sort()).toEqual([
+    "about",
+    "journal",
+  ]);
+
+  for (const pageRecord of pages.docs) {
+    await page.goto(`/admin/collections/pages/${pageRecord.id}`);
+    await expect(page.getByText("Something went wrong:")).not.toBeVisible();
+  }
+});
