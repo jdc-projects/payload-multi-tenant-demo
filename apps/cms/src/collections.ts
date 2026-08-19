@@ -52,10 +52,7 @@ const pageRead = ({ req }: { req: { user?: unknown; headers?: Headers } }) => {
 };
 
 const revalidationTimeoutMs = 5_000;
-// Payload runs collection hooks before the database transaction is committed.
-// Yielding to the event loop lets the operation commit before the renderer
-// reads the document that this notification invalidates.
-const revalidationDelayMs = 100;
+const revalidationPollMs = 250;
 
 type PageSnapshot = { tenant?: any; slug?: string };
 
@@ -81,35 +78,11 @@ const resolveTenantSlug = async (tenant: any, req: any) => {
   }
 };
 
-const notifyWebPages = async (snapshots: PageSnapshot[], req: any) => {
-  const notifications = new Map<string, Promise<unknown>>();
-  await Promise.all(
-    snapshots.map(async (snapshot) => {
-      const tenant = await resolveTenantSlug(snapshot.tenant, req);
-      if (!tenant) return;
-      const slug = snapshot.slug ?? "";
-      const key = `${tenant}:${slug}`;
-      if (notifications.has(key)) return;
-      notifications.set(
-        key,
-        fetch(`${webURL}/api/revalidate`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${revalidationSecret}`,
-          },
-          body: JSON.stringify({ tenant, slug }),
-          signal: AbortSignal.timeout(revalidationTimeoutMs),
-        }).catch(() => {
-          // The web process may be restarting while CMS remains available.
-        }),
-      );
-    }),
-  );
-  await Promise.all(notifications.values());
-};
-
-/** Notify the renderer after the surrounding Payload transaction commits. */
+/**
+ * Payload collection hooks run inside the write transaction. Store the
+ * notification in an outbox in that same transaction; the worker below only
+ * sees it after Postgres commits, so invalidation cannot race the write.
+ */
 const revalidateWebPage = async ({
   doc,
   previousDoc,
@@ -123,10 +96,68 @@ const revalidateWebPage = async ({
 
   const snapshots: PageSnapshot[] = [doc];
   if (previousDoc) snapshots.push(previousDoc);
-  setTimeout(() => {
-    void notifyWebPages(snapshots, req);
-  }, revalidationDelayMs);
+  for (const snapshot of snapshots) {
+    const tenant = await resolveTenantSlug(snapshot.tenant, req);
+    if (!tenant) continue;
+    await req.payload.create({
+      collection: "revalidation-events",
+      data: { tenant, slug: snapshot.slug ?? "" },
+      overrideAccess: true,
+      req,
+    });
+  }
   return doc;
+};
+
+export const startRevalidationWorker = (payload: any) => {
+  const process = async (): Promise<void> => {
+    try {
+      const events = await payload.find({
+        collection: "revalidation-events",
+        limit: 20,
+        sort: "createdAt",
+        overrideAccess: true,
+      });
+      for (const event of events.docs) {
+        const tenant = event.tenant as string;
+        const slug = (event.slug as string | undefined) ?? "";
+        const response = await fetch(`${webURL}/api/revalidate`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${revalidationSecret}`,
+          },
+          body: JSON.stringify({ tenant, slug }),
+          signal: AbortSignal.timeout(revalidationTimeoutMs),
+        }).catch(() => undefined);
+        if (response?.ok)
+          await payload.delete({
+            collection: "revalidation-events",
+            id: event.id,
+            overrideAccess: true,
+          });
+      }
+    } catch {
+      // Keep events in the outbox and retry after the next poll.
+    }
+    setTimeout(() => void process(), revalidationPollMs);
+  };
+  void process();
+};
+
+export const RevalidationEvents: CollectionConfig = {
+  slug: "revalidation-events",
+  access: {
+    read: () => false,
+    create: () => false,
+    update: () => false,
+    delete: () => false,
+  },
+  admin: { hidden: true },
+  fields: [
+    { name: "tenant", type: "text", required: true },
+    { name: "slug", type: "text", required: true },
+  ],
 };
 
 export const enforceTenantWrite = ({
