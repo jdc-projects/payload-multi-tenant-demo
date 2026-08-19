@@ -21,23 +21,6 @@ async function payloadConfig() {
   return (await import("./payload.config.js")).default;
 }
 
-export const tenants = [
-  {
-    name: "Acme Studio",
-    slug: "demo1",
-    theme: { primaryColor: "#5b21b6", fontFamily: "Inter" },
-  },
-  {
-    name: "Northstar",
-    slug: "demo2",
-    theme: { primaryColor: "#0f766e", fontFamily: "Georgia" },
-  },
-  {
-    name: "Field Notes",
-    slug: "demo3",
-    theme: { primaryColor: "#c2410c", fontFamily: "system-ui" },
-  },
-];
 async function exportFixture(output: string) {
   const payload = await getPayload({ config: await payloadConfig() });
   const tenantDocs = await readAllPages((page) =>
@@ -165,7 +148,7 @@ async function importFixtureRecords(
   payload: PayloadClient,
   fixture: SeedFixture,
   force: boolean,
-  tenantIDs: Map<string, string>,
+  tenantIDs: Map<string, string | number>,
   transactionID: TransactionID,
 ) {
   const { mediaIDs, missingMedia } = await prepareMedia(
@@ -194,7 +177,7 @@ async function importTenant(
   payload: PayloadClient,
   tenant: SeedFixture["tenants"][number],
   force: boolean,
-  tenantIDs: Map<string, string>,
+  tenantIDs: Map<string, string | number>,
   transactionID?: string | number,
 ) {
   const existing = await payload.find({
@@ -213,10 +196,10 @@ async function importTenant(
       overrideAccess: true,
       req: { transactionID },
     });
-    tenantIDs.set(tenant.slug, String(created.id));
+    tenantIDs.set(tenant.slug, created.id);
     return false;
   }
-  tenantIDs.set(tenant.slug, String(record.id));
+  tenantIDs.set(tenant.slug, record.id);
   if (force) {
     await payload.update({
       collection: "tenants",
@@ -239,7 +222,7 @@ async function importTenant(
 async function importMedia(
   payload: PayloadClient,
   media: SeedFixture["media"][number],
-  mediaIDs: Map<string, string>,
+  mediaIDs: Map<string, string | number>,
   transactionID: string | number,
 ): Promise<boolean> {
   const existing = await payload.find({
@@ -252,7 +235,7 @@ async function importMedia(
   });
   const record = existing.docs[0];
   if (record) {
-    mediaIDs.set(media.ref, String(record.id));
+    mediaIDs.set(media.ref, record.id);
     return true;
   }
   console.warn(
@@ -265,8 +248,8 @@ async function importPage(
   payload: PayloadClient,
   page: SeedFixture["pages"][number],
   force: boolean,
-  tenantIDs: Map<string, string>,
-  mediaIDs: Map<string, string>,
+  tenantIDs: Map<string, string | number>,
+  mediaIDs: Map<string, string | number>,
   transactionID?: string | number,
 ) {
   const slug = String(page.slug ?? "");
@@ -322,8 +305,11 @@ async function prepareMedia(
   payload: PayloadClient,
   fixture: SeedFixture,
   transactionID: string | number,
-): Promise<{ mediaIDs: Map<string, string>; missingMedia: Set<string> }> {
-  const mediaIDs = new Map<string, string>();
+): Promise<{
+  mediaIDs: Map<string, string | number>;
+  missingMedia: Set<string>;
+}> {
+  const mediaIDs = new Map<string, string | number>();
   const missingMedia = new Set<string>();
   for (const media of fixture.media) {
     if (!(await importMedia(payload, media, mediaIDs, transactionID)))
@@ -340,7 +326,7 @@ async function importTenants(
   payload: PayloadClient,
   fixture: SeedFixture,
   force: boolean,
-  tenantIDs: Map<string, string>,
+  tenantIDs: Map<string, string | number>,
   transactionID?: string | number,
 ) {
   let skipped = 0;
@@ -355,8 +341,8 @@ async function importPages(
   payload: PayloadClient,
   fixture: SeedFixture,
   force: boolean,
-  tenantIDs: Map<string, string>,
-  mediaIDs: Map<string, string>,
+  tenantIDs: Map<string, string | number>,
+  mediaIDs: Map<string, string | number>,
   transactionID?: string | number,
 ) {
   let skipped = 0;
@@ -382,7 +368,7 @@ export async function importFixture(
   const fixture = await readFixture(input);
   const payload =
     providedPayload ?? (await getPayload({ config: await payloadConfig() }));
-  const tenantIDs = new Map<string, string>();
+  const tenantIDs = new Map<string, string | number>();
   try {
     validateFixtureTenants(fixture);
     // Payload's database transaction is shared by every local API operation.
@@ -401,82 +387,34 @@ export async function importFixture(
 async function seedRecords(
   payload: PayloadClient,
   transactionID: TransactionID,
+  force: boolean,
 ) {
-  for (const tenant of tenants) {
-    const existing = await payload.find({
-      collection: "tenants",
-      where: { slug: { equals: tenant.slug } },
-      limit: 1,
-      overrideAccess: true,
-      req: { transactionID },
-    });
-    const record =
-      existing.docs[0] ??
-      (await payload.create({
-        collection: "tenants",
-        data: tenant,
-        overrideAccess: true,
-        req: { transactionID },
-      }));
-    const page = await payload.find({
-      collection: "pages",
-      where: {
-        and: [{ tenant: { equals: record.id } }, { slug: { equals: "" } }],
-      },
-      limit: 1,
-      overrideAccess: true,
-      req: { transactionID },
-    });
-    if (!page.docs[0])
-      await payload.create({
-        collection: "pages",
-        data: {
-          title: tenant.name,
-          slug: "",
-          _status: "published",
-          tenant: record.id,
-          layout: [
-            {
-              blockType: "hero",
-              heading: `Welcome to ${tenant.name}`,
-              body: "A Payload-powered site assembled from code-defined components.",
-              actions: [{ label: "Explore", href: "#" }],
-              spacing: "lg",
-            },
-            {
-              blockType: "featureGrid",
-              heading: "Built for flexible content",
-              features: [
-                {
-                  title: "Composable",
-                  body: "Editors arrange approved components into a page.",
-                },
-                {
-                  title: "Tenant-aware",
-                  body: "Each tenant owns its content and visual theme.",
-                },
-              ],
-              spacing: "md",
-            },
-          ],
-        },
-        overrideAccess: true,
-        req: { transactionID },
-      });
-  }
+  const fixture = await readFixture(fixturePath());
+  validateFixtureTenants(fixture);
+  await importFixtureRecords(
+    payload,
+    fixture,
+    force,
+    new Map<string, string | number>(),
+    transactionID,
+  );
+  return fixture.tenants.length;
 }
 
-async function seed() {
+async function seed(force: boolean) {
   const payload = await getPayload({ config: await payloadConfig() });
   try {
+    let tenantCount = 0;
     await runFixtureTransaction(
       getTransactionDatabase(payload),
-      (transactionID) => seedRecords(payload, transactionID),
+      async (transactionID) => {
+        tenantCount = await seedRecords(payload, transactionID, force);
+      },
     );
+    console.log(`Seeded ${tenantCount} tenants`);
   } finally {
     await payload.db.destroy?.();
   }
-  console.log(`Seeded ${tenants.length} tenants`);
 }
 
 if (
@@ -486,14 +424,16 @@ if (
   const [command, argument, ...flags] = process.argv.slice(2);
   const operation =
     command === "export" || command === "import" ? command : "seed";
+  const force =
+    flags.includes("--force") || process.env.npm_config_force === "true";
   const file =
     argument ?? (operation === "export" ? fixturePath() : fixturePath());
   const run =
     operation === "export"
       ? exportFixture(file)
       : operation === "import"
-        ? importFixture(file, flags.includes("--force"))
-        : seed();
+        ? importFixture(file, force)
+        : seed(force);
   void run
     .then(() => process.exit(0))
     .catch((error) => {

@@ -49,6 +49,51 @@
       ]
     },
     {
+      "title": "About Acme Studio",
+      "slug": "about",
+      "_status": "published",
+      "tenant": "demo1",
+      "layout": [
+        {
+          "blockType": "richText",
+          "content": {
+            "root": {
+              "children": [
+                {
+                  "type": "heading",
+                  "tag": "h2",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "A small studio with a broad brief"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "Acme Studio uses the website builder to shape a distinct editorial voice for every tenant."
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "spacing": "lg"
+        },
+        {
+          "blockType": "callToAction",
+          "heading": "Start a conversation",
+          "body": "Bring your next launch into focus.",
+          "label": "Contact us",
+          "href": "mailto:hello@example.com",
+          "spacing": "md"
+        }
+      ]
+    },
+    {
       "title": "Northstar",
       "slug": "",
       "_status": "published",
@@ -79,6 +124,41 @@
       ]
     },
     {
+      "title": "Northstar services",
+      "slug": "services",
+      "_status": "published",
+      "tenant": "demo2",
+      "layout": [
+        {
+          "blockType": "hero",
+          "eyebrow": "What we do",
+          "heading": "Clear direction for complex work",
+          "body": "Northstar turns strategy into a practical path forward.",
+          "actions": [{ "label": "See the approach", "href": "#approach" }],
+          "spacing": "md"
+        },
+        {
+          "blockType": "featureGrid",
+          "heading": "An integrated practice",
+          "features": [
+            {
+              "title": "Strategy",
+              "body": "Find the signal in a crowded market."
+            },
+            {
+              "title": "Design",
+              "body": "Turn the signal into a useful experience."
+            },
+            {
+              "title": "Delivery",
+              "body": "Move from idea to launch with confidence."
+            }
+          ],
+          "spacing": "lg"
+        }
+      ]
+    },
+    {
       "title": "Field Notes",
       "slug": "",
       "_status": "published",
@@ -105,6 +185,71 @@
             }
           ],
           "spacing": "md"
+        }
+      ]
+    },
+    {
+      "title": "Field Notes journal",
+      "slug": "journal",
+      "_status": "published",
+      "tenant": "demo3",
+      "layout": [
+        {
+          "blockType": "richText",
+          "content": {
+            "root": {
+              "children": [
+                {
+                  "type": "heading",
+                  "tag": "h2",
+                  "children": [
+                    { "type": "text", "text": "Notes from the field" }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "A living collection of observations, experiments, and useful details."
+                    }
+                  ]
+                },
+                {
+                  "type": "list",
+                  "children": [
+                    {
+                      "type": "listitem",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "Notice what others overlook"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "listitem",
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "Make room for the unexpected"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "spacing": "lg"
+        },
+        {
+          "blockType": "callToAction",
+          "heading": "Read the latest note",
+          "body": "The best stories are still being gathered.",
+          "label": "Explore the archive",
+          "href": "/demo3/",
+          "spacing": "sm"
         }
       ]
     }

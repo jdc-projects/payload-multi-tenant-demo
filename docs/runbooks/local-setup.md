@@ -42,6 +42,10 @@ npm run start
 
 ## Seed fixtures
 
+See [CMS Content Editing](content-editing.md) for page creation, component usage,
+preview/publish, and the workflow for exporting intentional CMS changes back to
+the versioned seed fixture.
+
 The versioned normalized fixture at `apps/cms/src/fixtures/v1.json` can be exported or imported without generated IDs and timestamps:
 
 ```sh
