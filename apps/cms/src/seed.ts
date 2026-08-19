@@ -398,14 +398,17 @@ export async function importFixture(
   }
 }
 
-async function seed() {
-  const payload = await getPayload({ config: await payloadConfig() });
+async function seedRecords(
+  payload: PayloadClient,
+  transactionID: TransactionID,
+) {
   for (const tenant of tenants) {
     const existing = await payload.find({
       collection: "tenants",
       where: { slug: { equals: tenant.slug } },
       limit: 1,
       overrideAccess: true,
+      req: { transactionID },
     });
     const record =
       existing.docs[0] ??
@@ -413,6 +416,7 @@ async function seed() {
         collection: "tenants",
         data: tenant,
         overrideAccess: true,
+        req: { transactionID },
       }));
     const page = await payload.find({
       collection: "pages",
@@ -421,6 +425,7 @@ async function seed() {
       },
       limit: 1,
       overrideAccess: true,
+      req: { transactionID },
     });
     if (!page.docs[0])
       await payload.create({
@@ -456,7 +461,20 @@ async function seed() {
           ],
         },
         overrideAccess: true,
+        req: { transactionID },
       });
+  }
+}
+
+async function seed() {
+  const payload = await getPayload({ config: await payloadConfig() });
+  try {
+    await runFixtureTransaction(
+      getTransactionDatabase(payload),
+      (transactionID) => seedRecords(payload, transactionID),
+    );
+  } finally {
+    await payload.db.destroy?.();
   }
   console.log(`Seeded ${tenants.length} tenants`);
 }
