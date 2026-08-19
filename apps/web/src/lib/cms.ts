@@ -6,6 +6,7 @@ const cmsHeaders = cmsRendererToken
   : undefined;
 
 export type Page = {
+  id?: string | number;
   updatedAt?: string;
   title: string;
   slug: string;

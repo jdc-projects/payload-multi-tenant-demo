@@ -70,3 +70,115 @@ test("seeded Rich Text pages open in the CMS editor", async ({ page }) => {
     await expect(page.getByText("Something went wrong:")).not.toBeVisible();
   }
 });
+
+test("Northstar services opens its tenant and slug in live preview", async ({
+  page,
+}) => {
+  const login = await page.request.post("/api/users/login", {
+    data: {
+      email: process.env.PAYLOAD_ADMIN_EMAIL ?? "admin@example.com",
+      password: process.env.PAYLOAD_ADMIN_PASSWORD ?? "changemechangeme",
+    },
+  });
+  expect(login.ok()).toBe(true);
+
+  const response = await page.request.get(
+    `/api/pages?where=${encodeURIComponent(
+      JSON.stringify({
+        and: [
+          { "tenant.slug": { equals: "demo2" } },
+          { slug: { equals: "services" } },
+        ],
+      }),
+    )}`,
+  );
+  expect(response.ok()).toBe(true);
+  const pageRecord = (await response.json()).docs[0] as { id: string | number };
+  await page.goto(`/admin/collections/pages/${pageRecord.id}`);
+  await page.getByRole("button", { name: /live preview/i }).click();
+  const iframe = page.locator("iframe").last();
+  await expect(iframe).toBeVisible();
+  await expect(iframe).toHaveAttribute(
+    "src",
+    /\/demo2\/services\?preview=true/,
+  );
+  const preview = page.frameLocator("#live-preview-iframe");
+  await expect(
+    preview.getByRole("heading", { name: "Clear direction for complex work" }),
+  ).toBeVisible();
+  const image = preview.getByRole("img", {
+    name: "Clear direction for complex work",
+  });
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const iframe = document.querySelector<HTMLIFrameElement>(
+      "#live-preview-iframe",
+    );
+    iframe?.contentWindow?.postMessage(
+      {
+        type: "payload-live-preview",
+        data: {
+          id: "different-page",
+          layout: [
+            {
+              blockType: "hero",
+              heading: "Welcome to Northstar",
+              body: "Stale document data",
+            },
+          ],
+        },
+      },
+      "*",
+    );
+  });
+  await expect(
+    preview.getByRole("heading", { name: "Clear direction for complex work" }),
+  ).toBeVisible();
+});
+
+test("Acme About preview loads its image block", async ({ page }) => {
+  const login = await page.request.post("/api/users/login", {
+    data: {
+      email: process.env.PAYLOAD_ADMIN_EMAIL ?? "admin@example.com",
+      password: process.env.PAYLOAD_ADMIN_PASSWORD ?? "changemechangeme",
+    },
+  });
+  expect(login.ok()).toBe(true);
+
+  const response = await page.request.get(
+    `/api/pages?where=${encodeURIComponent(
+      JSON.stringify({
+        and: [
+          { "tenant.slug": { equals: "demo1" } },
+          { slug: { equals: "about" } },
+        ],
+      }),
+    )}`,
+  );
+  expect(response.ok()).toBe(true);
+  const pageRecord = (await response.json()).docs[0] as { id: string | number };
+  await page.goto(`/admin/collections/pages/${pageRecord.id}`);
+  await page.getByRole("button", { name: /live preview/i }).click();
+  const preview = page.frameLocator("#live-preview-iframe");
+  await expect(
+    preview.getByRole("heading", {
+      name: "A small studio with a broad brief",
+    }),
+  ).toBeVisible();
+  const image = preview.getByRole("img", { name: "Abstract studio landscape" });
+  await expect(image).toBeVisible();
+  const imageSrc = await image.getAttribute("src");
+  expect(imageSrc).toBeTruthy();
+  const imageResponse = await page.request.get(imageSrc!);
+  expect(imageResponse.ok()).toBe(true);
+  await expect
+    .poll(() =>
+      image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+});

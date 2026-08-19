@@ -69,7 +69,11 @@ export default async function TenantPage({
         pages={navigation}
         currentSlug={slug.join("/")}
       />
-      <LivePreviewBlocks blocks={page.layout} key={page.updatedAt} />
+      <LivePreviewBlocks
+        blocks={page.layout}
+        key={page.updatedAt}
+        pageId={page.id}
+      />
     </main>
   );
 }

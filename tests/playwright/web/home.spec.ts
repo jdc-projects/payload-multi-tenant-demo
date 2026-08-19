@@ -44,6 +44,9 @@ test("tenant pages preserve hierarchy, links, and responsive layout", async ({
 
 test("tenant hero media loads from the CMS", async ({ page }) => {
   await page.goto("/demo2/services/");
+  await expect(
+    page.getByRole("heading", { name: "Clear direction for complex work" }),
+  ).toBeVisible();
   const image = page.getByRole("img", {
     name: "Clear direction for complex work",
   });
