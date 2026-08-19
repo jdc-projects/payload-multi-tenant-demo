@@ -14,7 +14,7 @@
     "build:managed": "tsx scripts/test-stack.ts build",
     "dev": "tsx scripts/watch.ts",
     "dev:infra": "tsx scripts/infra.ts up",
-    "start": "npm run dev:infra && node --env-file-if-exists=.env node_modules/turbo/bin/turbo run start --parallel",
+    "start": "npm run dev:infra && node --env-file-if-exists=.env node_modules/turbo/bin/turbo run start",
     "start:infra": "tsx scripts/infra.ts up",
     "test:stack": "tsx scripts/test-stack.ts",
     "format": "prettier --write .",
