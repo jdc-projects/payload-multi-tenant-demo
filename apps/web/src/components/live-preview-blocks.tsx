@@ -33,11 +33,13 @@ export function LivePreviewBlocks({
       if (!event.data || typeof event.data !== "object") return;
       const data = event.data.data;
       if (
-        pageId !== undefined &&
-        data &&
-        typeof data === "object" &&
-        data.id !== undefined &&
-        String(data.id) !== String(pageId)
+        event.data.type === "payload-live-preview" &&
+        window.parent !== window &&
+        (pageId === undefined ||
+          !data ||
+          typeof data !== "object" ||
+          data.id === undefined ||
+          String(data.id) !== String(pageId))
       )
         return;
 
@@ -59,7 +61,7 @@ export function LivePreviewBlocks({
         parentOrigin ?? "*",
       );
     return () => window.removeEventListener("message", handleMessage);
-  }, [router]);
+  }, [pageId, router]);
 
   return <Blocks blocks={currentBlocks} />;
 }
