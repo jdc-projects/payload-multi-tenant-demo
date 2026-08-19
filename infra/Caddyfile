@@ -10,8 +10,7 @@
     reverse_proxy {$CMS_UPSTREAM}
   }
   handle /media* {
-    uri replace /media /{env.S3_BUCKET}
-    reverse_proxy rustfs:9000
+    reverse_proxy {$CMS_UPSTREAM}
   }
   handle {
     reverse_proxy {$WEB_UPSTREAM}
