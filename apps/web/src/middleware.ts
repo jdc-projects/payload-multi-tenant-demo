@@ -7,9 +7,7 @@ const hostResolutionMode = ["domain", "subdomain"].includes(
 );
 const allowPathFallback = process.env.TENANT_ALLOW_PATH_FALLBACK === "true";
 
-function unresolvedResponse(
-  request: NextRequest,
-): NextResponse | undefined {
+function unresolvedResponse(request: NextRequest): NextResponse | undefined {
   if (!hostResolutionMode && request.nextUrl.pathname === "/")
     return NextResponse.next();
   if (hostResolutionMode || !allowPathFallback)
