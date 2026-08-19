@@ -27,6 +27,8 @@ const staleAge = 10 * 60_000;
 let environment: NodeJS.ProcessEnv;
 const children: ChildProcess[] = [];
 let cleaning = false;
+let stopping = false;
+let stopStatus = 1;
 let claimedPorts: string[] = [];
 let stopWatch: (status: number) => void = () => undefined;
 const readinessAbort = new AbortController();
@@ -38,6 +40,10 @@ const defaultPorts = {
   cms: 24_000,
   web: 25_000,
 };
+
+function startupCheckpoint() {
+  if (stopping) throw new Error("Watch stopped");
+}
 
 function portIsAvailable(port: number) {
   return new Promise<boolean>((resolve) => {
@@ -81,37 +87,46 @@ function claimOwnerIsAlive(file: string) {
 
 function claimPort(port: string) {
   const file = `${claimDirectory}/${port}`;
-  try {
-    // mkdir is the claim operation. Unlike an exclusively-created file, a
-    // directory cannot be observed between creation and writing its owner
-    // record as a partially written claim that is safe to remove.
-    fs.mkdirSync(file);
-  } catch (error) {
-    if (claimOwnerIsAlive(file)) throw error;
-    // A missing or malformed owner record is still considered claimed. It
-    // may be a process that was interrupted during its atomic metadata
-    // publish, and reclaiming it would reintroduce port collisions.
-    if (!fs.existsSync(`${file}/owner`)) throw error;
-    let owner: { pid?: number };
-    try {
-      owner = JSON.parse(fs.readFileSync(`${file}/owner`, "utf8")) as {
-        pid?: number;
-      };
-    } catch {
-      throw error;
-    }
-    if (owner.pid) fs.rmSync(file, { recursive: true, force: true });
-    else throw error;
-    fs.mkdirSync(file);
-  }
-  const temporaryOwner = `${file}/owner.${process.pid}.${randomUUID()}.tmp`;
+  const temporary = `${file}.tmp-${process.pid}-${randomUUID()}`;
+  fs.mkdirSync(temporary);
+  const temporaryOwner = `${temporary}/owner.tmp`;
   fs.writeFileSync(
     temporaryOwner,
     JSON.stringify({ pid: process.pid, at: Date.now() }),
     { flag: "wx" },
   );
-  fs.renameSync(temporaryOwner, `${file}/owner`);
+  fs.renameSync(temporaryOwner, `${temporary}/owner`);
+  try {
+    // Publishing a complete directory is atomic. A killed process can only
+    // leave a uniquely named temporary directory, which allocation reclaims.
+    fs.renameSync(temporary, file);
+  } catch (error) {
+    if (claimOwnerIsAlive(file)) {
+      fs.rmSync(temporary, { recursive: true, force: true });
+      throw error;
+    }
+    // Dead owners and interrupted publications are reclaimable. The owner
+    // check above protects claims belonging to a live watch process.
+    fs.rmSync(file, { recursive: true, force: true });
+    fs.renameSync(temporary, file);
+  }
+  fs.rmSync(temporary, { recursive: true, force: true });
   return file;
+}
+
+function reclaimInterruptedClaims() {
+  if (!fs.existsSync(claimDirectory)) return;
+  for (const entry of fs.readdirSync(claimDirectory)) {
+    if (!entry.includes(".tmp-")) continue;
+    const file = `${claimDirectory}/${entry}`;
+    try {
+      const stat = fs.statSync(file);
+      if (Date.now() - stat.mtimeMs > 1_000)
+        fs.rmSync(file, { recursive: true, force: true });
+    } catch {
+      // Another allocator may be publishing or reclaiming this claim.
+    }
+  }
 }
 
 async function portsAvailable(portsToCheck: string[]) {
@@ -128,6 +143,7 @@ function releaseClaims(claims: string[]) {
 async function allocatePorts() {
   if (allPortsConfigured()) return explicitPorts as Ports;
   fs.mkdirSync(claimDirectory, { recursive: true });
+  reclaimInterruptedClaims();
   const start = process.pid % 10_000;
   for (let attempt = 0; attempt < 10_000; attempt++) {
     const offset = (start + attempt) % 10_000;
@@ -137,6 +153,10 @@ async function allocatePorts() {
     try {
       for (const port of automatic) claims.push(claimPort(port));
       if (await portsAvailable(automatic)) {
+        if (stopping) {
+          releaseClaims(claims);
+          throw new Error("Watch stopped");
+        }
         claimedPorts = claims;
         return { ...candidate, ...explicitPorts } as Ports;
       }
@@ -241,13 +261,30 @@ function isOwnedWatch(name: string, manifest: WatchManifest) {
   }
 }
 
+function processIsAlive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function removeStaleProject(
   name: string,
   file: string,
   manifest: WatchManifest,
 ) {
-  if (isOwnedWatch(name, manifest) || !manifest.startedAt) return;
-  if (Date.now() - manifest.startedAt < staleAge) return;
+  if (isOwnedWatch(name, manifest)) return;
+  const pid = manifest.pid ?? Number(name.slice("payload-demo-watch-".length));
+  // A dead owner is stale immediately. The age fallback handles manifests
+  // from older versions which did not record a usable pid.
+  if (pid && processIsAlive(pid)) return;
+  if (
+    !pid &&
+    (!manifest.startedAt || Date.now() - manifest.startedAt < staleAge)
+  )
+    return;
   execFileSync(
     "docker",
     [
@@ -267,12 +304,12 @@ function removeStaleProject(
 function reconcileStaleProject(name: string) {
   const file = `${root}/.watch-${name}.json`;
   const manifest = readManifest(file);
-  if (manifest) {
-    try {
-      removeStaleProject(name, file, manifest);
-    } catch {
-      // Missing/invalid ownership metadata is never safe to remove.
-    }
+  try {
+    // Missing or malformed manifests are recoverable when the PID encoded in
+    // this repository-owned project name is no longer running.
+    removeStaleProject(name, file, manifest ?? {});
+  } catch {
+    // Never let one broken project prevent startup or broaden cleanup scope.
   }
 }
 
@@ -331,6 +368,7 @@ function cleanup() {
 
 async function main() {
   ports = await allocatePorts();
+  startupCheckpoint();
   environment = {
     ...process.env,
     POSTGRES_PORT: ports.postgres!,
@@ -352,7 +390,9 @@ async function main() {
       startedAt: Date.now(),
     }),
   );
+  startupCheckpoint();
   reconcileStaleProjects();
+  startupCheckpoint();
   const infrastructure = run("docker", [
     "compose",
     "-p",
@@ -363,7 +403,9 @@ async function main() {
     "-d",
     "--wait",
   ]);
-  if ((await waitForExit(infrastructure)) !== 0)
+  const infrastructureStatus = await waitForExit(infrastructure);
+  startupCheckpoint();
+  if (infrastructureStatus !== 0)
     throw new Error("Development infrastructure failed to start");
 
   const cms = run(
@@ -376,6 +418,7 @@ async function main() {
     ["--import", "tsx", `${root}/scripts/run-next.ts`, "web", "dev"],
     `${root}/apps/web`,
   );
+  let startupReady = false;
   const watchExit = new Promise<number>((resolve) => {
     stopWatch = resolve;
     for (const [child, name] of [
@@ -388,7 +431,8 @@ async function main() {
           `${name} watch process exited (${code ?? signal ?? "unknown"})`,
         );
         cleanup();
-        resolve(exitStatus(code, signal));
+        const status = exitStatus(code, signal);
+        resolve(startupReady ? status : status || 1);
       });
   });
 
@@ -396,7 +440,7 @@ async function main() {
     const result = await Promise.race([
       waitFor(url)
         .then(() => null)
-        .catch(() => ({ status: process.exitCode ?? 1 })),
+        .catch(() => ({ status: stopping ? stopStatus : 1 })),
       watchExit.then((status) => ({ status })),
     ]);
     if (result !== null) {
@@ -405,6 +449,7 @@ async function main() {
       cleanup();
       // Readiness failure must not leave the host processes (or their event
       // loop handles) keeping watch.ts alive after its scoped Compose cleanup.
+      if (result.status === 0) result.status = 1;
       process.exit(result.status);
       return false;
     }
@@ -414,20 +459,23 @@ async function main() {
   if (!(await waitForReady(`http://127.0.0.1:${ports.cms}/admin`))) return;
   if (!(await waitForReady(`http://127.0.0.1:${ports.web}/`))) return;
   if (!(await waitForReady(`http://127.0.0.1:${ports.proxy}/`))) return;
+  startupReady = true;
   console.log(`Watch mode ready: http://127.0.0.1:${ports.proxy}/`);
   process.exitCode = await watchExit;
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.once(signal, () => {
+    stopping = true;
+    stopStatus = signal === "SIGINT" ? 130 : 143;
     readinessAbort.abort();
-    stopWatch(signal === "SIGINT" ? 130 : 143);
+    stopWatch(stopStatus);
     cleanup();
-    process.exitCode = signal === "SIGINT" ? 130 : 143;
+    process.exitCode = stopStatus;
   });
 process.once("exit", cleanup);
 void main().catch((error) => {
-  console.error(error);
+  if (!stopping) console.error(error);
   cleanup();
-  process.exitCode = 1;
+  process.exitCode = stopping ? stopStatus : 1;
 });
