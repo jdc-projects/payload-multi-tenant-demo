@@ -112,6 +112,7 @@
           "alt": "Abstract studio landscape",
           "caption": "A visual identity shaped from simple forms.",
           "aspectRatio": "16:9",
+          "mediaSize": "full",
           "spacing": "md"
         },
         {
@@ -167,6 +168,7 @@
           "body": "Northstar turns strategy into a practical path forward.",
           "image": { "ref": "studio-mark.svg" },
           "aspectRatio": "16:9",
+          "mediaSize": "full",
           "actions": [{ "label": "See the approach", "href": "#approach" }],
           "spacing": "md"
         },
@@ -340,6 +342,7 @@
           "poster": { "ref": "studio-mark.svg" },
           "caption": "Flowers moving in a field.",
           "aspectRatio": "16:9",
+          "mediaSize": "full",
           "spacing": "md"
         },
         {
