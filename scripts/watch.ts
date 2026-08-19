@@ -68,7 +68,9 @@ function automaticPorts(candidate: Ports) {
 
 function claimOwnerIsAlive(file: string) {
   try {
-    const owner = JSON.parse(fs.readFileSync(file, "utf8")) as { pid?: number };
+    const owner = JSON.parse(fs.readFileSync(`${file}/owner`, "utf8")) as {
+      pid?: number;
+    };
     if (!owner.pid) return false;
     process.kill(owner.pid, 0);
     return true;
@@ -79,16 +81,36 @@ function claimOwnerIsAlive(file: string) {
 
 function claimPort(port: string) {
   const file = `${claimDirectory}/${port}`;
-  let fd: number;
   try {
-    fd = fs.openSync(file, "wx");
+    // mkdir is the claim operation. Unlike an exclusively-created file, a
+    // directory cannot be observed between creation and writing its owner
+    // record as a partially written claim that is safe to remove.
+    fs.mkdirSync(file);
   } catch (error) {
     if (claimOwnerIsAlive(file)) throw error;
-    fs.rmSync(file, { force: true });
-    fd = fs.openSync(file, "wx");
+    // A missing or malformed owner record is still considered claimed. It
+    // may be a process that was interrupted during its atomic metadata
+    // publish, and reclaiming it would reintroduce port collisions.
+    if (!fs.existsSync(`${file}/owner`)) throw error;
+    let owner: { pid?: number };
+    try {
+      owner = JSON.parse(fs.readFileSync(`${file}/owner`, "utf8")) as {
+        pid?: number;
+      };
+    } catch {
+      throw error;
+    }
+    if (owner.pid) fs.rmSync(file, { recursive: true, force: true });
+    else throw error;
+    fs.mkdirSync(file);
   }
-  fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }));
-  fs.closeSync(fd);
+  const temporaryOwner = `${file}/owner.${process.pid}.${randomUUID()}.tmp`;
+  fs.writeFileSync(
+    temporaryOwner,
+    JSON.stringify({ pid: process.pid, at: Date.now() }),
+    { flag: "wx" },
+  );
+  fs.renameSync(temporaryOwner, `${file}/owner`);
   return file;
 }
 
@@ -100,7 +122,7 @@ async function portsAvailable(portsToCheck: string[]) {
 }
 
 function releaseClaims(claims: string[]) {
-  for (const file of claims) fs.rmSync(file, { force: true });
+  for (const file of claims) fs.rmSync(file, { recursive: true, force: true });
 }
 
 async function allocatePorts() {
@@ -302,7 +324,8 @@ function cleanup() {
   } catch {
     // Preserve the application failure if Docker has already stopped.
   }
-  for (const file of claimedPorts) fs.rmSync(file, { force: true });
+  for (const file of claimedPorts)
+    fs.rmSync(file, { recursive: true, force: true });
   fs.rmSync(manifestFile, { force: true });
 }
 
@@ -378,6 +401,11 @@ async function main() {
     ]);
     if (result !== null) {
       process.exitCode = result.status;
+      stopWatch(result.status);
+      cleanup();
+      // Readiness failure must not leave the host processes (or their event
+      // loop handles) keeping watch.ts alive after its scoped Compose cleanup.
+      process.exit(result.status);
       return false;
     }
     return true;
