@@ -21,6 +21,7 @@ type Ports = typeof explicitPorts & Record<never, never>;
 let ports: Ports;
 const composeProject = `payload-demo-watch-${process.pid}`;
 const ownerToken = randomUUID();
+const ownerIdentity = `payload-demo-watch:${composeProject}:${ownerToken}`;
 const manifestFile = `${root}/.watch-${composeProject}.json`;
 const claimDirectory = "/tmp/payload-demo-watch-port-claims";
 const staleAge = 10 * 60_000;
@@ -30,6 +31,7 @@ let cleaning = false;
 let stopping = false;
 let stopStatus = 1;
 let claimedPorts: string[] = [];
+let inProgressClaims: string[] = [];
 let stopWatch: (status: number) => void = () => undefined;
 const readinessAbort = new AbortController();
 const defaultPorts = {
@@ -72,16 +74,28 @@ function automaticPorts(candidate: Ports) {
     .map(([key]) => candidate[key as keyof Ports]);
 }
 
-function claimOwnerIsAlive(file: string) {
+function claimOwnerStatus(file: string) {
   try {
     const owner = JSON.parse(fs.readFileSync(`${file}/owner`, "utf8")) as {
       pid?: number;
+      token?: string;
+      identity?: string;
     };
-    if (!owner.pid) return false;
+    if (!owner.pid || !owner.token || !owner.identity)
+      return "unknown" as const;
     process.kill(owner.pid, 0);
-    return true;
+    const command = execFileSync(
+      "ps",
+      ["-p", String(owner.pid), "-o", "command="],
+      {
+        encoding: "utf8",
+      },
+    );
+    return command.includes(owner.identity) && command.includes(owner.token)
+      ? ("alive" as const)
+      : ("stale" as const);
   } catch {
-    return false;
+    return "stale" as const;
   }
 }
 
@@ -92,7 +106,12 @@ function claimPort(port: string) {
   const temporaryOwner = `${temporary}/owner.tmp`;
   fs.writeFileSync(
     temporaryOwner,
-    JSON.stringify({ pid: process.pid, at: Date.now() }),
+    JSON.stringify({
+      pid: process.pid,
+      token: ownerToken,
+      identity: ownerIdentity,
+      at: Date.now(),
+    }),
     { flag: "wx" },
   );
   fs.renameSync(temporaryOwner, `${temporary}/owner`);
@@ -101,16 +120,19 @@ function claimPort(port: string) {
     // leave a uniquely named temporary directory, which allocation reclaims.
     fs.renameSync(temporary, file);
   } catch (error) {
-    if (claimOwnerIsAlive(file)) {
+    const status = claimOwnerStatus(file);
+    if (status === "alive" || status === "unknown") {
       fs.rmSync(temporary, { recursive: true, force: true });
       throw error;
     }
-    // Dead owners and interrupted publications are reclaimable. The owner
-    // check above protects claims belonging to a live watch process.
+    // A dead owner or a PID whose process identity no longer matches is
+    // reclaimable. Checking identity prevents PID reuse preserving a stale
+    // claim.
     fs.rmSync(file, { recursive: true, force: true });
     fs.renameSync(temporary, file);
   }
   fs.rmSync(temporary, { recursive: true, force: true });
+  inProgressClaims.push(file);
   return file;
 }
 
@@ -137,7 +159,24 @@ async function portsAvailable(portsToCheck: string[]) {
 }
 
 function releaseClaims(claims: string[]) {
-  for (const file of claims) fs.rmSync(file, { recursive: true, force: true });
+  for (const file of claims) {
+    try {
+      const owner = JSON.parse(fs.readFileSync(`${file}/owner`, "utf8")) as {
+        pid?: number;
+        token?: string;
+        identity?: string;
+      };
+      if (
+        owner.pid !== process.pid ||
+        owner.token !== ownerToken ||
+        owner.identity !== ownerIdentity
+      )
+        continue;
+      fs.rmSync(file, { recursive: true, force: true });
+    } catch {
+      // The claim may already have been reclaimed by another allocator.
+    }
+  }
 }
 
 async function allocatePorts() {
@@ -158,12 +197,19 @@ async function allocatePorts() {
           throw new Error("Watch stopped");
         }
         claimedPorts = claims;
+        inProgressClaims = inProgressClaims.filter(
+          (file) => !claims.includes(file),
+        );
         return { ...candidate, ...explicitPorts } as Ports;
       }
-    } catch {
+    } catch (error) {
+      if (stopping) throw error;
       // Another watch process claimed this candidate.
     }
     releaseClaims(claims);
+    inProgressClaims = inProgressClaims.filter(
+      (file) => !claims.includes(file),
+    );
   }
   throw new Error("Unable to allocate isolated watch ports");
 }
@@ -361,12 +407,16 @@ function cleanup() {
   } catch {
     // Preserve the application failure if Docker has already stopped.
   }
-  for (const file of claimedPorts)
-    fs.rmSync(file, { recursive: true, force: true });
+  releaseClaims([...claimedPorts, ...inProgressClaims]);
+  claimedPorts = [];
+  inProgressClaims = [];
   fs.rmSync(manifestFile, { force: true });
 }
 
 async function main() {
+  // Claims are created before infrastructure starts, so publish the process
+  // identity before allocation as well as in the manifest.
+  process.title = ownerIdentity;
   ports = await allocatePorts();
   startupCheckpoint();
   environment = {
@@ -380,7 +430,6 @@ async function main() {
     WEB_UPSTREAM: `host.docker.internal:${ports.web}`,
     CMS_UPSTREAM: `host.docker.internal:${ports.cms}`,
   };
-  process.title = `payload-demo-watch:${composeProject}:${ownerToken}`;
   fs.writeFileSync(
     manifestFile,
     JSON.stringify({
