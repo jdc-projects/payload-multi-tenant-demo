@@ -10,7 +10,7 @@ export type SeedFixture = {
     theme?: Record<string, unknown>;
   }>;
   pages: Array<Record<string, unknown> & { tenant: string }>;
-  media: Array<Record<string, unknown> & { ref: string }>;
+  media: Array<Record<string, unknown> & { ref: string; source?: string }>;
 };
 
 /** Remove values Payload generates, including IDs on nested blocks and arrays. */

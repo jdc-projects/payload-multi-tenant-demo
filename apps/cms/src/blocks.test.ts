@@ -20,4 +20,15 @@ describe("page block registry", () => {
     );
     expect(alt).toMatchObject({ name: "alt", required: true });
   });
+
+  it("gives media blocks a stable editor-controlled aspect ratio", () => {
+    for (const slug of ["hero", "image", "video"]) {
+      const block = pageBlocks.find((item) => item.slug === slug);
+      expect(
+        block?.fields.find(
+          (field) => "name" in field && field.name === "aspectRatio",
+        ),
+      ).toMatchObject({ name: "aspectRatio", defaultValue: "16:9" });
+    }
+  });
 });

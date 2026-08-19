@@ -83,6 +83,7 @@ export async function getNavigation(tenant: string): Promise<NavigationPage[]> {
 export async function getPagePaths(): Promise<
   Array<{ tenant: string; slug: string[] }>
 > {
+  if (process.env.CMS_BUILD_ROUTE_DISCOVERY !== "true") return [];
   const params = new URLSearchParams({
     where: JSON.stringify({ _status: { equals: "published" } }),
     depth: "1",

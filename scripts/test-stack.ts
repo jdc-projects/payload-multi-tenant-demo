@@ -51,6 +51,7 @@ const testEnv = {
   PROXY_HOST: "127.0.0.1",
   PROXY_PORT: String(proxyPort),
   NEXT_DIST_DIR: `.next-${composeProject}`,
+  CMS_BUILD_ROUTE_DISCOVERY: "true",
   CMS_RENDERER_TOKEN: process.env.CMS_RENDERER_TOKEN ?? "test-renderer-token",
   REVALIDATION_SECRET:
     process.env.REVALIDATION_SECRET ?? "test-revalidation-secret",

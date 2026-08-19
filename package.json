@@ -18,6 +18,7 @@
     "start:infra": "tsx scripts/infra.ts up",
     "test:stack": "tsx scripts/test-stack.ts",
     "format": "prettier --write .",
+    "format:scoped": "prettier --write",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
     "seed": "npm run seed:cms",

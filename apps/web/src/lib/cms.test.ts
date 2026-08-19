@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getNavigation, getTenants } from "./cms";
+import { getNavigation, getPagePaths, getTenants } from "./cms";
 import { createTenantResolver } from "./tenant-resolver";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe("tenant mapping", () => {
   it("contains the three deterministic demo tenants", async () => {
@@ -40,6 +43,15 @@ describe("tenant mapping", () => {
     ]);
     expect(fetchMock.mock.calls[0]?.[0]).toContain("demo1");
     expect(fetchMock.mock.calls[0]?.[0]).toContain("published");
+  });
+
+  it("skips CMS route discovery during a standalone build", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("CMS_BUILD_ROUTE_DISCOVERY", "false");
+
+    await expect(getPagePaths()).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
