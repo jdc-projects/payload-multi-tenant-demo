@@ -62,6 +62,7 @@ test("live preview applies incoming unsaved layout changes", async ({
   page,
 }) => {
   await page.goto("/demo1/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.evaluate(() => {
     window.postMessage(
       {

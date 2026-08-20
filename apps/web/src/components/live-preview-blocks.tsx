@@ -25,8 +25,9 @@ export function LivePreviewBlocks({
         return undefined;
       }
     })();
+    const externalPreview = window.parent !== window || window.opener !== null;
     const previewHost =
-      window.parent !== window ? window.parent : window.opener;
+      (window.parent !== window ? window.parent : window.opener) ?? window;
     const handleMessage = (event: MessageEvent) => {
       if (
         event.source !== previewHost ||
@@ -37,7 +38,7 @@ export function LivePreviewBlocks({
       const data = event.data.data;
       if (
         event.data.type === "payload-live-preview" &&
-        previewHost &&
+        externalPreview &&
         (pageId === undefined ||
           !data ||
           typeof data !== "object" ||
@@ -58,7 +59,7 @@ export function LivePreviewBlocks({
     };
 
     window.addEventListener("message", handleMessage);
-    if (previewHost)
+    if (externalPreview)
       previewHost.postMessage(
         { type: "payload-live-preview", ready: true },
         parentOrigin ?? "*",
