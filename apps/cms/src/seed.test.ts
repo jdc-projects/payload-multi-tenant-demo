@@ -212,5 +212,8 @@ describe("fixture import transactions", () => {
         ]),
       ),
     ).toEqual(firstCounts);
+    expect(second.docs.media.map(({ id }) => id)).toEqual(
+      first.docs.media.map(({ id }) => id),
+    );
   });
 });

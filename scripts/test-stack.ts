@@ -395,6 +395,12 @@ async function prepareCms() {
     env: testEnv,
     stdio: "inherit",
   });
+  if (mode === "e2e")
+    execFileSync("npm", ["run", "seed:cms"], {
+      cwd: root,
+      env: testEnv,
+      stdio: "inherit",
+    });
   await stopChild(cmsDev);
   const cms = run(
     process.execPath,
