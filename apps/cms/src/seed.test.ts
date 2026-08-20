@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { fixturePath } from "./seed-data.js";
 import { importFixture } from "./seed.js";
 
 type Doc = Record<string, any>;
@@ -186,5 +187,33 @@ describe("fixture import transactions", () => {
     second.docs.pages.push(...first.docs.pages);
     await importFixture(file, false, second.payload);
     expect(second.docs.media).toHaveLength(1);
+  });
+
+  it("reuses media when importing the versioned fixture twice", async () => {
+    const first = payloadMock();
+    await importFixture(fixturePath(), false, first.payload);
+    const firstCounts = Object.fromEntries(
+      Object.entries(first.docs).map(([collection, records]) => [
+        collection,
+        records.length,
+      ]),
+    );
+
+    const second = payloadMock();
+    for (const collection of Object.keys(second.docs))
+      second.docs[collection].push(...first.docs[collection]);
+    await importFixture(fixturePath(), false, second.payload);
+
+    expect(
+      Object.fromEntries(
+        Object.entries(second.docs).map(([collection, records]) => [
+          collection,
+          records.length,
+        ]),
+      ),
+    ).toEqual(firstCounts);
+    expect(second.docs.media.map(({ id }) => id)).toEqual(
+      first.docs.media.map(({ id }) => id),
+    );
   });
 });
