@@ -199,17 +199,29 @@ async function waitFor(url: string, timeout = 120_000) {
 }
 
 async function mediaSnapshot() {
-  const response = await fetch(
-    `http://127.0.0.1:${cmsPort}/api/media?limit=1000&depth=0`,
-  );
-  if (!response.ok)
-    throw new Error(`Could not read seeded media: ${response.status}`);
-  const data = (await response.json()) as {
-    docs: Array<{ id: string | number; filename?: string }>;
-  };
-  return data.docs
-    .map(({ id, filename }) => ({ id: String(id), filename: filename ?? "" }))
-    .sort((left, right) => left.filename.localeCompare(right.filename));
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${cmsPort}/api/media?limit=1000&depth=0`,
+      );
+      if (!response.ok)
+        throw new Error(`Could not read seeded media: ${response.status}`);
+      const data = (await response.json()) as {
+        docs: Array<{ id: string | number; filename?: string }>;
+      };
+      return data.docs
+        .map(({ id, filename }) => ({
+          id: String(id),
+          filename: filename ?? "",
+        }))
+        .sort((left, right) => left.filename.localeCompare(right.filename));
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw lastError;
 }
 
 function cleanup() {
@@ -416,6 +428,7 @@ async function prepareCms() {
       env: testEnv,
       stdio: "inherit",
     });
+    await waitFor(`http://127.0.0.1:${cmsPort}/admin`);
     const repeatedMedia = await mediaSnapshot();
     if (JSON.stringify(repeatedMedia) !== JSON.stringify(seededMedia))
       throw new Error("Repeated fixture seed changed the media records");
