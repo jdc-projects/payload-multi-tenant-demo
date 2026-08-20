@@ -29,6 +29,7 @@ export function LivePreviewBlocks({
       window.parent !== window ? window.parent : window.opener;
     const handleMessage = (event: MessageEvent) => {
       if (
+        !previewHost ||
         event.source !== previewHost ||
         (parentOrigin && event.origin !== parentOrigin)
       )
@@ -37,7 +38,6 @@ export function LivePreviewBlocks({
       const data = event.data.data;
       if (
         event.data.type === "payload-live-preview" &&
-        previewHost &&
         (pageId === undefined ||
           !data ||
           typeof data !== "object" ||

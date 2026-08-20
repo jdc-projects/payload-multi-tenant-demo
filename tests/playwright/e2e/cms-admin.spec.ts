@@ -234,6 +234,9 @@ test("standalone live preview accepts updates from the Payload popup", async ({
     )
     .toBeLessThan(fullWidth);
   await popup.close();
+  await expect.poll(() => popup.isClosed()).toBe(true);
+  await page.getByRole("button", { name: /live preview/i }).click();
+  await expect(page.locator("#live-preview-iframe")).not.toBeVisible();
 });
 
 test("Acme About preview loads its image block", async ({ page }) => {
