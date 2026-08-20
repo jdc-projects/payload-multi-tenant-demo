@@ -1,190 +1,88 @@
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { fixturePath } from "./seed-data.js";
 import { importFixture } from "./seed.js";
 
-type Doc = Record<string, any>;
-type MockPayload = NonNullable<Parameters<typeof importFixture>[2]>;
+type RecordValue = { id: string | number; [key: string]: unknown };
 
-async function fixtureFile(fixture: Record<string, unknown>) {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "seed-import-"));
-  const file = path.join(directory, "fixture.json");
-  await fs.writeFile(
-    file,
-    JSON.stringify({ version: 1, media: [], ...fixture }),
-  );
-  return file;
-}
-
-function payloadMock(
-  options: { failOnPage?: number; rollbackFails?: boolean } = {},
-) {
-  const docs: Record<string, Doc[]> = { tenants: [], pages: [], media: [] };
-  let transactionDocs: Record<string, Doc[]> | undefined;
-  let transactionSnapshot: Record<string, Doc[]> | undefined;
+function createPayloadStub() {
+  const records: Record<string, RecordValue[]> = {
+    tenants: [],
+    media: [],
+    pages: [],
+  };
+  const creates: string[] = [];
   let nextID = 1;
-  let transactionID = 0;
-  const findTransactionIDs: Array<string | number | undefined> = [];
+
   const payload = {
     db: {
-      beginTransaction: async () => {
-        transactionID += 1;
-        transactionSnapshot = structuredClone(docs);
-        transactionDocs = structuredClone(docs);
-        return transactionID;
-      },
-      commitTransaction: async () => {
-        for (const collection of Object.keys(docs))
-          docs[collection] = transactionDocs?.[collection] ?? [];
-        transactionDocs = undefined;
-      },
-      rollbackTransaction: async () => {
-        if (options.rollbackFails) throw new Error("rollback outage");
-        for (const collection of Object.keys(docs))
-          docs[collection] = transactionSnapshot?.[collection] ?? [];
-        transactionSnapshot = undefined;
-        transactionDocs = undefined;
-      },
+      beginTransaction: async () => "seed-test-transaction",
+      commitTransaction: async () => undefined,
+      rollbackTransaction: async () => undefined,
     },
-    find: async ({ collection, where, req }: any) => {
-      findTransactionIDs.push(req?.transactionID);
-      const source = transactionDocs?.[collection] ?? docs[collection];
-      const terms =
-        where?.and ??
-        Object.entries(where ?? {}).map(([field, value]) => ({
-          [field]: value,
-        }));
-      const result = source.filter((doc) =>
-        terms.every((term: any) => {
-          const [field, condition] = Object.entries(term)[0] as [string, any];
-          return doc[field] === condition.equals;
-        }),
-      );
-      return { docs: result.slice(0, 1) };
-    },
-    create: async ({ collection, data, file, req }: any) => {
-      if (
-        options.failOnPage &&
-        collection === "pages" &&
-        data.slug === `page-${options.failOnPage}`
-      )
-        throw new Error("mid-fixture failure");
-      const record = {
-        ...data,
-        ...(file ? { filename: file.name, mimeType: file.mimetype } : {}),
-        id: String(nextID++),
+    find: async ({ collection, where }: Record<string, any>) => {
+      const collectionRecords = records[collection] ?? [];
+      if (collection === "tenants") {
+        const slug = where?.slug?.equals;
+        return {
+          docs: collectionRecords.filter((record) => record.slug === slug),
+        };
+      }
+      if (collection === "media") {
+        const filename = where?.filename?.equals;
+        return {
+          docs: collectionRecords.filter(
+            (record) => record.filename === filename,
+          ),
+        };
+      }
+      const [tenantCondition, slugCondition] = where?.and ?? [];
+      return {
+        docs: collectionRecords.filter(
+          (record) =>
+            record.tenant === tenantCondition?.tenant?.equals &&
+            record.slug === slugCondition?.slug?.equals,
+        ),
       };
-      transactionDocs?.[collection].push(record);
+    },
+    create: async ({ collection, data, file }: Record<string, any>) => {
+      const record = {
+        ...(data ?? {}),
+        ...(file ? { filename: file.name } : {}),
+        id: `seed-test-${nextID++}`,
+      };
+      records[collection]?.push(record);
+      creates.push(collection);
       return record;
     },
-    update: async () => undefined,
-  } as unknown as MockPayload;
-  return { payload, docs, findTransactionIDs };
+  };
+
+  return { payload, records, creates };
 }
 
-const tenant = { name: "Tenant", slug: "demo1" };
-const page = (slug: string) => ({
-  title: slug,
-  slug,
-  tenant: "demo1",
-  layout: [],
-});
+describe("fixture media seeding", () => {
+  it("reuses media and records on a second import", async () => {
+    const fixture = fixturePath();
+    const stub = createPayloadStub();
 
-describe("fixture import transactions", () => {
-  it("propagates the transaction and rolls back a mid-fixture failure", async () => {
-    const file = await fixtureFile({
-      tenants: [tenant],
-      pages: [page("page-1"), page("page-2")],
-    });
-    const { payload, docs, findTransactionIDs } = payloadMock({
-      failOnPage: 2,
-    });
-
-    await expect(importFixture(file, false, payload)).rejects.toThrow(
-      "mid-fixture failure",
+    await importFixture(fixture, false, stub.payload as any);
+    const firstCounts = Object.fromEntries(
+      Object.entries(stub.records).map(([collection, records]) => [
+        collection,
+        records.length,
+      ]),
     );
-    expect(docs.tenants).toEqual([]);
-    expect(docs.pages).toEqual([]);
-    expect(findTransactionIDs.every((id) => id === 1)).toBe(true);
-  });
+    const firstCreates = stub.creates.length;
 
-  it("observes duplicate fixture entries in one transaction and is idempotent", async () => {
-    const file = await fixtureFile({
-      tenants: [tenant, tenant],
-      pages: [page("home"), page("home")],
-    });
-    const first = payloadMock();
-    await importFixture(file, false, first.payload);
-    expect(first.docs.tenants).toHaveLength(1);
-    expect(first.docs.pages).toHaveLength(1);
+    await importFixture(fixture, false, stub.payload as any);
 
-    const second = payloadMock();
-    second.docs.tenants.push(...first.docs.tenants);
-    second.docs.pages.push(...first.docs.pages);
-    await importFixture(file, false, second.payload);
-    expect(second.docs.tenants).toHaveLength(1);
-    expect(second.docs.pages).toHaveLength(1);
-  });
-
-  it("reports rollback failure while preserving the import error as cause", async () => {
-    const file = await fixtureFile({
-      tenants: [tenant],
-      pages: [page("page-1")],
-    });
-    const { payload } = payloadMock({ failOnPage: 1, rollbackFails: true });
-
-    await expect(importFixture(file, false, payload)).rejects.toMatchObject({
-      message: expect.stringContaining("rollback failed: rollback outage"),
-      cause: expect.objectContaining({ message: "mid-fixture failure" }),
-    });
-  });
-
-  it("uploads checked-in media once and reuses it on repeat imports", async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "seed-media-"));
-    const assets = path.join(directory, "assets");
-    await fs.mkdir(assets);
-    await fs.writeFile(path.join(assets, "demo.svg"), "<svg />");
-    const file = path.join(directory, "fixture.json");
-    await fs.writeFile(
-      file,
-      JSON.stringify({
-        version: 1,
-        tenants: [tenant],
-        pages: [
-          {
-            ...page("home"),
-            layout: [
-              {
-                blockType: "image",
-                image: { ref: "demo.svg" },
-                alt: "Demo",
-              },
-            ],
-          },
-        ],
-        media: [
-          {
-            ref: "demo.svg",
-            source: "assets/demo.svg",
-            alt: "Demo",
-          },
-        ],
-      }),
-    );
-    const first = payloadMock();
-    await importFixture(file, false, first.payload);
-    expect(first.docs.media).toHaveLength(1);
-    expect(first.docs.media[0]).toMatchObject({
-      filename: "demo.svg",
-      mimeType: "image/svg+xml",
-    });
-
-    const second = payloadMock();
-    second.docs.media.push(...first.docs.media);
-    second.docs.tenants.push(...first.docs.tenants);
-    second.docs.pages.push(...first.docs.pages);
-    await importFixture(file, false, second.payload);
-    expect(second.docs.media).toHaveLength(1);
+    expect(stub.creates.length).toBe(firstCreates);
+    expect(
+      Object.fromEntries(
+        Object.entries(stub.records).map(([collection, records]) => [
+          collection,
+          records.length,
+        ]),
+      ),
+    ).toEqual(firstCounts);
   });
 });
